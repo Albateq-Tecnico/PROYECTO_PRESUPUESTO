@@ -131,7 +131,7 @@ st.header("Resultados del Presupuesto")
 
 # --- FILTRAR Y MOSTRAR TABLA DE REFERENCIA ---
 st.subheader("Tabla de Referencia para la Selección Actual")
-'''
+
 if df_referencia is not None:
     # Filtrar el DataFrame basado en las selecciones de la barra lateral
     tabla_filtrada = df_referencia[
@@ -246,4 +246,3 @@ if st.checkbox("Mostrar datos crudos cargados para verificación"):
     st.subheader("3. Tabla de Referencia (ROSS_COBB_HUBBARD_2025.csv)")
     if df_referencia is not None:
         st.dataframe(df_referencia.head())
-'''
