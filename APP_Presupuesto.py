@@ -158,7 +158,7 @@ if df_referencia is not None:
             if not coeffs_seleccion.empty:
                 params = coeffs_seleccion.iloc[0]
                 x = data['Cons_Acum_Ajustado']
-                return (params['Intercepto'] + params['coef_1'] * x + params['coef_2'] * (x**2) + params['coef_3'] * (x**3) + params['coef_4'] * (x**4))
+                return (params['Intercept'] + params['Coef_1'] * x + params['Coef_2'] * (x**2) + params['Coef_3'] * (x**3) + params['Coef_4'] * (x**4))
             else: return pd.Series(0, index=data.index)
         
         dias_1_14 = tabla_filtrada['Dia'] <= 14
