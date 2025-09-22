@@ -128,10 +128,10 @@ st.title("🐔 Presupuesto Avícola")
 st.markdown("---")
 st.header("Resultados del Presupuesto")
 
-'''
+
 # --- FILTRAR Y MOSTRAR TABLA DE REFERENCIA ---
 st.subheader("Tabla de Referencia para la Selección Actual")
-
+'''
 if df_referencia is not None:
     # Filtrar el DataFrame basado en las selecciones de la barra lateral
     tabla_filtrada = df_referencia[
