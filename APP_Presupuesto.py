@@ -67,7 +67,7 @@ except FileNotFoundError:
 # --- DATOS DEL LOTE ---
 st.sidebar.subheader("Datos del Lote")
 fecha_llegada = st.sidebar.date_input("Fecha de llegada", date.today())
-aves_programadas = st.sidebar.number_input("# Aves Programadas", min_value=0, step=1000, format="%d")
+aves_programadas = st.sidebar.number_input("# Aves Programadas", min_value=0, value=10000, step=1000, format="%d")
 
 # --- GENÉTICA (DINÁMICO) ---
 st.sidebar.subheader("Línea Genética")
@@ -84,7 +84,7 @@ sexo_seleccionado = st.sidebar.selectbox("SEXO", sexos)
 # --- OBJETIVOS ---
 st.sidebar.subheader("Objetivos del Lote")
 peso_objetivo = st.sidebar.number_input("Peso Objetivo al mercado (gramos)", min_value=0, value=2500, step=50, format="%d")
-mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo en %", min_value=0.0, max_value=100.0, step=0.5, format="%.2f")
+mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo en %", min_value=0.0, max_value=100.0, value=5.0, step=0.5, format="%.2f")
 
 # --- CONDICIONES DE GRANJA ---
 st.sidebar.subheader("Condiciones de Granja")
@@ -115,7 +115,7 @@ elif asnm == "BAJA < 1000 msnm" and restriccion_programada > 0:
 # --- CONSUMOS PROGRAMADOS ---
 pre_iniciador = st.sidebar.number_input("Pre-iniciador (gramos/ave)", min_value=0, max_value=300, value=150, step=10, format="%d")
 iniciador = st.sidebar.number_input("Iniciador (gramos/ave)", min_value=1, max_value=2000, value=1200, step=10, format="%d")
-retiro = st.sidebar.number_input("Retiro (gramos/ave)", min_value=0, max_value=2000, step=10, format="%d")
+retiro = st.sidebar.number_input("Retiro (gramos/ave)", min_value=0, max_value=2000, value=500, step=10, format="%d")
 st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 
 # --- UNIDADES ---
@@ -124,12 +124,11 @@ unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["
 
 
 # --- ÁREA PRINCIPAL ---
-'''
 st.title("🐔 Presupuesto Avícola")
 st.markdown("---")
-
 st.header("Resultados del Presupuesto")
 
+'''
 # --- FILTRAR Y MOSTRAR TABLA DE REFERENCIA ---
 st.subheader("Tabla de Referencia para la Selección Actual")
 
