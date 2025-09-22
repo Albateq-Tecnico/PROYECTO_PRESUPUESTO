@@ -36,6 +36,9 @@ def load_data(file_path, separator=','):
     except FileNotFoundError:
         st.error(f"Error: No se encontró el archivo en la ruta: {file_path}")
         return None
+    except Exception as e:
+        st.error(f"Error al cargar o procesar el archivo {file_path}: {e}")
+        return None
 
 # Cargar los DataFrames usando rutas absolutas
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
