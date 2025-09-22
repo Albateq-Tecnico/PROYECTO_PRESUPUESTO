@@ -249,6 +249,3 @@ if st.checkbox("Mostrar datos crudos cargados para verificación"):
     if df_referencia is not None:
         st.dataframe(df_referencia.head())
 '''
-
-
-'''
