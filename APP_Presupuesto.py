@@ -1,0 +1,234 @@
+'''
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Sep 22 10:43:19 2025
+
+@author: juan.leyton
+"""
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+from PIL import Image
+from datetime import date
+
+# --- CONFIGURACIÓN DE LA PÁGINA ---
+st.set_page_config(
+    page_title="Presupuesto Avícola",
+    page_icon="🐔",
+    layout="wide",
+)
+
+# --- CARGA DE DATOS CON CACHÉ ---
+@st.cache_data
+def load_data(file_path, separator=','):
+    """
+    Función para cargar datos desde un archivo CSV y guardarlos en caché.
+    Maneja errores si el archivo no se encuentra.
+    """
+    try:
+        df = pd.read_csv(file_path, sep=separator)
+        return df
+    except FileNotFoundError:
+        st.error(f"Error: No se encontró el archivo en la ruta: {file_path}")
+        return None
+
+# Cargar los DataFrames
+df_coeffs = load_data("ARCHIVOS/Cons_Acum_Peso.csv")
+df_coeffs_15 = load_data("ARCHIVOS/Cons_Acum_Peso_15.csv")
+df_referencia = load_data("ARCHIVOS/ROSS_COBB_HUBBARD_2025.csv", separator=';')
+
+# --- PANEL LATERAL DE ENTRADAS (SIDEBAR) ---
+
+st.sidebar.header("1. Valores de Entrada")
+
+try:
+    logo = Image.open("ARCHIVOS/log_PEQ.png")
+    st.sidebar.image(logo, width=150)
+except FileNotFoundError:
+    st.sidebar.warning("No se encontró el archivo del logo.")
+
+# --- DATOS DEL LOTE ---
+st.sidebar.subheader("Datos del Lote")
+fecha_llegada = st.sidebar.date_input("Fecha de llegada", date.today())
+aves_programadas = st.sidebar.number_input("# Aves Programadas", min_value=0, step=1000, format="%d")
+
+# --- GENÉTICA (DINÁMICO) ---
+st.sidebar.subheader("Línea Genética")
+if df_referencia is not None:
+    razas = sorted(df_referencia['RAZA'].unique())
+    sexos = sorted(df_referencia['SEXO'].unique())
+else:
+    razas = ["ROSS 308 AP", "COBB", "HUBBARD", "ROSS"] # Fallback
+    sexos = ["MIXTO", "HEMBRA", "MACHO"] # Fallback
+
+raza_seleccionada = st.sidebar.selectbox("RAZA", razas)
+sexo_seleccionado = st.sidebar.selectbox("SEXO", sexos)
+
+# --- OBJETIVOS ---
+st.sidebar.subheader("Objetivos del Lote")
+peso_objetivo = st.sidebar.number_input("Peso Objetivo al mercado (gramos)", min_value=0, value=2500, step=50, format="%d")
+mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo en %", min_value=0.0, max_value=100.0, step=0.5, format="%.2f")
+
+# --- CONDICIONES DE GRANJA ---
+st.sidebar.subheader("Condiciones de Granja")
+tipo_granja = st.sidebar.radio("Tipo de GRANJA", ["TUNEL", "MEJORADA", "NATURAL"])
+asnm = st.sidebar.radio("Altitud (ASNM)", ["ALTA >2000 msnm", "MEDIA <2000 y >1000 msnm", "BAJA < 1000 msnm"])
+
+# --- LÓGICA DE RESTRICCIÓN ---
+st.sidebar.subheader("Programa de Alimentación")
+if asnm == "ALTA >2000 msnm":
+    st.sidebar.info("Recomendación: Máxima restricción del 20%.")
+    max_restriccion = 20
+elif asnm == "MEDIA <2000 y >1000 msnm":
+    st.sidebar.info("Recomendación: Máxima restricción del 10%.")
+    max_restriccion = 10
+else: # BAJA < 1000 msnm
+    st.sidebar.info("Recomendación: No se recomienda restricción.")
+    max_restriccion = 0
+
+restriccion_programada = st.sidebar.number_input("% Restricción Programado", min_value=0, max_value=100, value=max_restriccion, step=1, format="%d")
+
+if asnm == "ALTA >2000 msnm" and restriccion_programada > 20:
+    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) supera el 20% recomendado.")
+elif asnm == "MEDIA <2000 y >1000 msnm" and restriccion_programada > 10:
+    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) supera el 10% recomendado.")
+elif asnm == "BAJA < 1000 msnm" and restriccion_programada > 0:
+    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) no es recomendada para esta altitud.")
+
+# --- CONSUMOS PROGRAMADOS ---
+pre_iniciador = st.sidebar.number_input("Pre-iniciador (gramos/ave)", min_value=0, max_value=300, value=150, step=10, format="%d")
+iniciador = st.sidebar.number_input("Iniciador (gramos/ave)", min_value=1, max_value=2000, value=1200, step=10, format="%d")
+retiro = st.sidebar.number_input("Retiro (gramos/ave)", min_value=0, max_value=2000, step=10, format="%d")
+st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
+
+# --- UNIDADES ---
+st.sidebar.subheader("Configuración de Unidades")
+unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["Kilos", "Bultos x 40 Kilos"])
+
+
+# --- ÁREA PRINCIPAL ---
+st.title("🐔 Presupuesto Avícola")
+st.markdown("---")
+
+st.header("Resultados del Presupuesto")
+
+# --- FILTRAR Y MOSTRAR TABLA DE REFERENCIA ---
+st.subheader("Tabla de Referencia para la Selección Actual")
+
+if df_referencia is not None:
+    # Filtrar el DataFrame basado en las selecciones de la barra lateral
+    tabla_filtrada = df_referencia[
+        (df_referencia['RAZA'] == raza_seleccionada) &
+        (df_referencia['SEXO'] == sexo_seleccionado)
+    ].copy() # Usar .copy() para evitar SettingWithCopyWarning más adelante
+
+    # Calcular la nueva columna si la tabla no está vacía
+    if not tabla_filtrada.empty:
+        
+        # --- ORDEN DE CÁLCULOS REESTRUCTURADO ---
+        
+        # 1. AJUSTAR CONSUMO POR RESTRICCIÓN
+        factor_ajuste = 1 - (restriccion_programada / 100.0)
+        if tabla_filtrada['Cons_Acum'].dtype == 'object':
+            tabla_filtrada['Cons_Acum'] = pd.to_numeric(tabla_filtrada['Cons_Acum'].str.replace(',', '.'), errors='coerce')
+        tabla_filtrada['Cons_Acum_Ajustado'] = tabla_filtrada['Cons_Acum'] * factor_ajuste
+
+        # 2. CALCULAR PESO ESTIMADO (depende de Cons_Acum_Ajustado)
+        tabla_filtrada['Peso_Estimado'] = 0.0
+        def calcular_peso(data, coeffs_df, df_name):
+            if coeffs_df is None: return pd.Series(0, index=data.index)
+            coeffs_seleccion = coeffs_df[(coeffs_df['RAZA'] == raza_seleccionada) & (coeffs_df['SEXO'] == sexo_seleccionado)]
+            if not coeffs_seleccion.empty:
+                params = coeffs_seleccion.iloc[0]
+                x = data['Cons_Acum_Ajustado']
+                return (params['Intercepto'] + params['coef_1'] * x + params['coef_2'] * (x**2) + params['coef_3'] * (x**3) + params['coef_4'] * (x**4))
+            else: return pd.Series(0, index=data.index)
+        
+        dias_1_14 = tabla_filtrada['Dia'] <= 14
+        dias_15_adelante = tabla_filtrada['Dia'] >= 15
+        if dias_1_14.any():
+             tabla_filtrada.loc[dias_1_14, 'Peso_Estimado'] = calcular_peso(tabla_filtrada[dias_1_14], df_coeffs_15, "Cons_Acum_Peso_15.csv")
+        if dias_15_adelante.any():
+            tabla_filtrada.loc[dias_15_adelante, 'Peso_Estimado'] = calcular_peso(tabla_filtrada[dias_15_adelante], df_coeffs, "Cons_Acum_Peso.csv")
+
+        # 3. ASIGNAR FASE DE ALIMENTO (depende de Peso_Estimado para el consumo total)
+        consumo_total_objetivo_ave = 0
+        if peso_objetivo > 0 and 'Peso_Estimado' in tabla_filtrada.columns and tabla_filtrada['Peso_Estimado'].sum() > 0:
+            df_interp = tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+            consumo_total_objetivo_ave = np.interp(peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
+
+        limite_preiniciador = pre_iniciador
+        limite_iniciador = pre_iniciador + iniciador
+        limite_inicio_retiro = consumo_total_objetivo_ave - retiro if retiro > 0 and consumo_total_objetivo_ave > retiro else np.inf
+
+        conditions = [
+            tabla_filtrada['Cons_Acum_Ajustado'] <= limite_preiniciador,
+            tabla_filtrada['Cons_Acum_Ajustado'].between(limite_preiniciador, limite_iniciador, inclusive='right'),
+            tabla_filtrada['Cons_Acum_Ajustado'] > limite_inicio_retiro
+        ]
+        choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
+        tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
+
+        # 4. MOSTRAR TABLA PRINCIPAL
+        st.dataframe(tabla_filtrada)
+
+        # 5. MOSTRAR GRÁFICO
+        st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
+        if tabla_filtrada['Peso'].dtype == 'object':
+            tabla_filtrada['Peso'] = pd.to_numeric(tabla_filtrada['Peso'].str.replace(',', '.'), errors='coerce')
+        if 'Peso_Estimado' in tabla_filtrada.columns:
+            chart_data = tabla_filtrada.set_index('Dia')[['Peso', 'Peso_Estimado']]
+            st.line_chart(chart_data)
+
+        # 6. MOSTRAR RESUMEN DE PRESUPUESTO
+        st.subheader("Resumen del Presupuesto de Alimento")
+        if aves_programadas > 0 and peso_objetivo > 0:
+            engorde = consumo_total_objetivo_ave - (pre_iniciador + iniciador + retiro)
+            if engorde < 0: engorde = 0
+
+            resumen_alimento = {
+                "Fase de Alimento": ["Pre-iniciador", "Iniciador", "Engorde", "Retiro", "Total"],
+                "Consumo (gr/ave)": [pre_iniciador, iniciador, engorde, retiro, consumo_total_objetivo_ave]
+            }
+            df_resumen = pd.DataFrame(resumen_alimento)
+            df_resumen["Consumo Total (gramos)"] = df_resumen["Consumo (gr/ave)"] * aves_programadas
+
+            if unidades_calculo == "Kilos":
+                df_resumen["Consumo Total (Unidades)"] = df_resumen["Consumo Total (gramos)"] / 1000
+                unidad_str = "Kilos"
+            else:
+                df_resumen["Consumo Total (Unidades)"] = df_resumen["Consumo Total (gramos)"] / 40000
+                unidad_str = "Bultos x 40kg"
+            
+            df_resumen.rename(columns={"Consumo Total (Unidades)": f"Consumo Total ({unidad_str})"}, inplace=True)
+
+            st.dataframe(df_resumen.style.format({
+                "Consumo (gr/ave)": "{:,.0f}",
+                "Consumo Total (gramos)": "{:,.0f}",
+                f"Consumo Total ({unidad_str})": "{:,.2f}"
+            }))
+        else:
+            st.info("Ingrese un número de 'Aves Programadas' y un 'Peso Objetivo' mayores a 0 para calcular el presupuesto.")
+    else:
+        st.warning("No se encontraron datos de referencia para la combinación de RAZA y SEXO seleccionada.")
+else:
+    st.error("No se pueden mostrar datos de referencia porque el DataFrame 'df_referencia' no se cargó correctamente.")
+
+st.markdown("---")
+
+# --- VERIFICACIÓN DE DATOS CARGADOS ---
+if st.checkbox("Mostrar datos crudos cargados para verificación"):
+    st.subheader("1. Coeficientes de Peso (Cons_Acum_Peso.csv)")
+    if df_coeffs is not None:
+        st.dataframe(df_coeffs.head())
+
+    st.subheader("2. Coeficientes de Peso 15 (Cons_Acum_Peso_15.csv)")
+    if df_coeffs_15 is not None:
+        st.dataframe(df_coeffs_15.head())
+
+    st.subheader("3. Tabla de Referencia (ROSS_COBB_HUBBARD_2025.csv)")
+    if df_referencia is not None:
+        st.dataframe(df_referencia.head())
+
+'''
