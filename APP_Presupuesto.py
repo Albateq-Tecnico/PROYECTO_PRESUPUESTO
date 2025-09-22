@@ -41,9 +41,19 @@ def load_data(file_path, separator=','):
         return None
 
 # Cargar los DataFrames usando rutas absolutas
+print("--- DEBUG: Loading df_coeffs...")
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
+print("--- DEBUG: df_coeffs loaded.")
+
+print("--- DEBUG: Loading df_coeffs_15...")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
+print("--- DEBUG: df_coeffs_15 loaded.")
+
+print("--- DEBUG: Loading df_referencia...")
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv", separator=';')
+print("--- DEBUG: df_referencia loaded.")
+
+print("--- DEBUG: All dataframes loaded. Proceeding to render UI.")
 
 # --- PANEL LATERAL DE ENTRADAS (SIDEBAR) ---
 
