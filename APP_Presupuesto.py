@@ -41,19 +41,19 @@ def load_data(file_path, separator=','):
         return None
 
 # Cargar los DataFrames usando rutas absolutas
-print("--- DEBUG: Loading df_coeffs...")
+print("--- DEBUG: Loading df_coeffs...", flush=True)
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
-print("--- DEBUG: df_coeffs loaded.")
+print("--- DEBUG: df_coeffs loaded.", flush=True)
 
-print("--- DEBUG: Loading df_coeffs_15...")
+print("--- DEBUG: Loading df_coeffs_15...", flush=True)
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
-print("--- DEBUG: df_coeffs_15 loaded.")
+print("--- DEBUG: df_coeffs_15 loaded.", flush=True)
 
-print("--- DEBUG: Loading df_referencia...")
+print("--- DEBUG: Loading df_referencia...", flush=True)
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv", separator=';')
-print("--- DEBUG: df_referencia loaded.")
+print("--- DEBUG: df_referencia loaded.", flush=True)
 
-print("--- DEBUG: All dataframes loaded. Proceeding to render UI.")
+print("--- DEBUG: All dataframes loaded. Proceeding to render UI.", flush=True)
 
 # --- PANEL LATERAL DE ENTRADAS (SIDEBAR) ---
 
@@ -125,6 +125,7 @@ unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["
 
 
 # --- ÁREA PRINCIPAL ---
+'''
 st.title("🐔 Presupuesto Avícola")
 st.markdown("---")
 
@@ -247,5 +248,7 @@ if st.checkbox("Mostrar datos crudos cargados para verificación"):
     st.subheader("3. Tabla de Referencia (ROSS_COBB_HUBBARD_2025.csv)")
     if df_referencia is not None:
         st.dataframe(df_referencia.head())
+'''
+
 
 '''
