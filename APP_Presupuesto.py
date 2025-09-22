@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 from datetime import date
+from pathlib import Path
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -18,6 +19,9 @@ st.set_page_config(
     page_icon="🐔",
     layout="wide",
 )
+
+# --- DEFINIR RUTA BASE PARA ACCEDER A LOS ARCHIVOS ---
+BASE_DIR = Path(__file__).resolve().parent
 
 # --- CARGA DE DATOS CON CACHÉ ---
 @st.cache_data
@@ -33,17 +37,17 @@ def load_data(file_path, separator=','):
         st.error(f"Error: No se encontró el archivo en la ruta: {file_path}")
         return None
 
-# Cargar los DataFrames
-df_coeffs = load_data("ARCHIVOS/Cons_Acum_Peso.csv")
-df_coeffs_15 = load_data("ARCHIVOS/Cons_Acum_Peso_15.csv")
-df_referencia = load_data("ARCHIVOS/ROSS_COBB_HUBBARD_2025.csv", separator=';')
+# Cargar los DataFrames usando rutas absolutas
+df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
+df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
+df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv", separator=';')
 
 # --- PANEL LATERAL DE ENTRADAS (SIDEBAR) ---
 
 st.sidebar.header("1. Valores de Entrada")
 
 try:
-    logo = Image.open("ARCHIVOS/log_PEQ.png")
+    logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
     st.sidebar.image(logo, width=150)
 except FileNotFoundError:
     st.sidebar.warning("No se encontró el archivo del logo.")
