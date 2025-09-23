@@ -262,3 +262,11 @@ if st.checkbox("Mostrar datos crudos cargados para verificación"):
     st.subheader("3. Tabla de Referencia (ROSS_COBB_HUBBARD_2025.csv)")
     if df_referencia is not None:
         st.dataframe(df_referencia.head())
+
+st.markdown("""
+<div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
+Nota de Responsabilidad: Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
+<br><br>
+Desarrollado por la Dirección Técnica de Albateq dtecnico@albateq.com
+</div>
+""", unsafe_allow_html=True)
