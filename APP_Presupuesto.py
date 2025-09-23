@@ -23,6 +23,7 @@ st.set_page_config(
 BASE_DIR = Path(__file__).resolve().parent
 
 # --- CARGA DE DATOS CON CACHÉ ---
+@st.cache_data
 def load_data(file_path, separator=','):
     """
     Función para cargar datos desde un archivo CSV y guardarlos en caché.
@@ -186,7 +187,7 @@ if df_referencia is not None:
         tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
         # 4. MOSTRAR TABLA PRINCIPAL
-        st.dataframe(tabla_filtrada.style.format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}"}))
+        st.dataframe(tabla_filtrada.style.format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}"}))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
