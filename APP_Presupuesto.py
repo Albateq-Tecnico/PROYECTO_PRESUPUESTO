@@ -220,8 +220,8 @@ if df_referencia is not None:
         # --- CÁLCULO DE CONSUMO TOTAL (Kilos o Bultos) ---
         if unidades_calculo == "Kilos":
             total_col_name = "Kilos Totales"
-            tabla_filtrada[total_col_name] = (tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 1000
-            format_total = "{:,.2f}"
+            tabla_filtrada[total_col_name] = ((tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 1000).round(0).astype(int)
+            format_total = "{:,.0f}"
         else: # Bultos x 40 Kilos
             total_col_name = "Bultos Totales"
             tabla_filtrada[total_col_name] = ((tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 40000).apply(np.ceil).astype(int)
