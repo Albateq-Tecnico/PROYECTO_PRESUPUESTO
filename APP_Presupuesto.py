@@ -126,7 +126,11 @@ unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["
 
 # --- ÁREA PRINCIPAL ---
 
-st.markdown("👈 Para empezar, despliegue el Panel de Control en la esquina superior izquierda para introducir los datos de la granja.")
+st.markdown("""
+<div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
+👈 Para empezar, despliegue el Panel de Control en la esquina superior izquierda para introducir los datos de la granja.
+</div>
+""", unsafe_allow_html=True)
 try:
     logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
     st.image(logo, width=150)
