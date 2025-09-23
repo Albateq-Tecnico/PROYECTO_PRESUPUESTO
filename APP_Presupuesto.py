@@ -126,14 +126,12 @@ unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["
 
 # --- ÁREA PRINCIPAL ---
 
-col1, col2 = st.columns([2, 1])
-with col2:
-    st.markdown("👈 Para empezar, despliegue el Panel de Control en la esquina superior izquierda para introducir los datos de la granja.")
-    try:
-        logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
-        st.image(logo, width=150)
-    except FileNotFoundError:
-        st.warning("No se encontró el archivo del logo.")
+st.markdown("👈 Para empezar, despliegue el Panel de Control en la esquina superior izquierda para introducir los datos de la granja.")
+try:
+    logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+    st.image(logo, width=150)
+except FileNotFoundError:
+    st.warning("No se encontró el archivo del logo.")
 
 st.title("🐔 Presupuesto Avícola")
 st.markdown("---")
