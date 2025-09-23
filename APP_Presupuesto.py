@@ -195,7 +195,7 @@ if df_referencia is not None:
             is_closest = row.name == closest_idx
             return ['background-color: #ffcccc' if is_closest else '' for _ in row]
 
-        st.dataframe(tabla_filtrada.style.apply(highlight_closest, axis=1).format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}"}).hide(subset=['RAZA', 'SEXO'], axis=1))
+        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}"}))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
