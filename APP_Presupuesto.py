@@ -129,7 +129,7 @@ st.header("Resultados del Presupuesto")
 
 
 # --- FILTRAR Y MOSTRAR TABLA DE REFERENCIA ---
-st.subheader("Tabla de Referencia para la Selección Actual")
+st.subheader(f"Tabla de Referencia para la {raza_seleccionada} y {sexo_seleccionado} con Peso Objetivo {peso_objetivo}")
 
 if df_referencia is not None:
     # Filtrar el DataFrame basado en las selecciones de la barra lateral
@@ -186,7 +186,7 @@ if df_referencia is not None:
         tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
         # 4. MOSTRAR TABLA PRINCIPAL
-        st.dataframe(tabla_filtrada)
+        st.dataframe(tabla_filtrada.style.format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}"}))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
