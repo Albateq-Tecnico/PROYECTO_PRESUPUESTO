@@ -23,7 +23,6 @@ st.set_page_config(
 BASE_DIR = Path(__file__).resolve().parent
 
 # --- CARGA DE DATOS CON CACHÉ ---
-@st.cache_data
 def load_data(file_path, separator=','):
     """
     Función para cargar datos desde un archivo CSV y guardarlos en caché.
