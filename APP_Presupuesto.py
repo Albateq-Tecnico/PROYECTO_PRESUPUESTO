@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image
 from datetime import date, timedelta
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
