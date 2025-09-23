@@ -41,15 +41,15 @@ def load_data(file_path, separator=','):
 
 # Cargar los DataFrames usando rutas absolutas
 print("--- DEBUG: Loading df_coeffs...", flush=True)
-df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv", separator=';')
+df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 print("--- DEBUG: df_coeffs loaded.", flush=True)
 
 print("--- DEBUG: Loading df_coeffs_15...", flush=True)
-df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv", separator=';')
+df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
 print("--- DEBUG: df_coeffs_15 loaded.", flush=True)
 
 print("--- DEBUG: Loading df_referencia...", flush=True)
-df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv", separator=';')
+df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
 print("--- DEBUG: df_referencia loaded.", flush=True)
 
 print("--- DEBUG: All dataframes loaded. Proceeding to render UI.", flush=True)
