@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from PIL import Image
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
@@ -213,6 +213,9 @@ if df_referencia is not None:
         else:
             tabla_filtrada['Mortalidad_Acumulada'] = 0
             tabla_filtrada['Saldo'] = aves_programadas
+        
+        # --- CÁLCULO DE FECHA ---
+        tabla_filtrada['Fecha'] = tabla_filtrada['Dia'].apply(lambda dia: fecha_llegada + timedelta(days=dia - 1))
 
         # --- CÁLCULO DE CONSUMO TOTAL (Kilos o Bultos) ---
         if unidades_calculo == "Kilos":
@@ -235,11 +238,10 @@ if df_referencia is not None:
             "Dia": "{:,.0f}", 
             "Cons_Acum": "{:,.0f}", 
             "Saldo": "{:,.0f}", 
-            "Mortalidad_Acumulada": "{:,.0f}",
             total_col_name: format_total
         }
 
-        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format(format_dict))
+        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO', 'Mortalidad_Acumulada']).style.apply(highlight_closest, axis=1).format(format_dict))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
