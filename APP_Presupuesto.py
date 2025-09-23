@@ -188,7 +188,14 @@ if df_referencia is not None:
         tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
         # 4. MOSTRAR TABLA PRINCIPAL
-        st.dataframe(tabla_filtrada.style.format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}"}))
+        tabla_filtrada = tabla_filtrada[tabla_filtrada['Peso_Estimado'] <= peso_objetivo * 1.05]
+        closest_idx = (tabla_filtrada['Peso_Estimado'] - peso_objetivo).abs().idxmin()
+
+        def highlight_closest(row):
+            is_closest = row.name == closest_idx
+            return ['background-color: #ffcccc' if is_closest else '' for _ in row]
+
+        st.dataframe(tabla_filtrada.style.apply(highlight_closest, axis=1).format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}"}).hide(subset=['RAZA', 'SEXO'], axis=1))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
