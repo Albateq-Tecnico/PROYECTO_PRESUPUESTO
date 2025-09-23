@@ -248,8 +248,29 @@ if df_referencia is not None:
         if tabla_filtrada['Peso'].dtype == 'object':
             tabla_filtrada['Peso'] = pd.to_numeric(tabla_filtrada['Peso'].str.replace(',', '.'), errors='coerce')
         if 'Peso_Estimado' in tabla_filtrada.columns:
-            chart_data = tabla_filtrada.set_index('Dia')[['Peso', 'Peso_Estimado']]
-            st.line_chart(chart_data)
+            # Crear el gráfico con Matplotlib
+            fig, ax = plt.subplots()
+
+            # Graficar las líneas con colores personalizados
+            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
+            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
+
+            # Añadir leyenda, títulos, etc.
+            ax.legend()
+            ax.set_xlabel("Día")
+            ax.set_ylabel("Peso (gramos)")
+            ax.grid(True)
+
+            # Añadir marca de agua
+            try:
+                logo_img = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+                # Posicionar la marca de agua en la esquina inferior derecha
+                fig.figimage(logo_img, xo=fig.bbox.xmax - logo_img.width - 10, yo=10, alpha=0.15, zorder=1)
+            except FileNotFoundError:
+                pass # No hacer nada si no se encuentra el logo
+
+            # Mostrar el gráfico en Streamlit
+            st.pyplot(fig)
 
         # 6. MOSTRAR RESUMEN DE PRESUPUESTO
         st.subheader("Resumen del Presupuesto de Alimento")
