@@ -208,16 +208,17 @@ if df_referencia is not None:
         if dias_ciclo > 0 and aves_programadas > 0:
             total_mortalidad_aves = aves_programadas * (mortalidad_objetivo / 100.0)
             mortalidad_diaria = total_mortalidad_aves / dias_ciclo
-            tabla_filtrada['Mortalidad_Acumulada'] = (tabla_filtrada['Dia'] * mortalidad_diaria).apply(np.floor)
-            tabla_filtrada['Saldo'] = aves_programadas - tabla_filtrada['Mortalidad_Acumulada']
+            tabla_filtrada['Mortalidad_Acumulada'] = (tabla_filtrada['Dia'] * mortalidad_diaria).apply(np.floor).astype(int)
+            tabla_filtrada['Saldo'] = (aves_programadas - tabla_filtrada['Mortalidad_Acumulada']).astype(int)
         else:
+            tabla_filtrada['Mortalidad_Acumulada'] = 0
             tabla_filtrada['Saldo'] = aves_programadas
 
         def highlight_closest(row):
             is_closest = row.name == closest_idx
             return ['background-color: #ffcccc' if is_closest else '' for _ in row]
 
-        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}", "Saldo": "{:,.0f}"}))
+        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}", "Saldo": "{:,.0f}", "Mortalidad_Acumulada": "{:,.0f}"}))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
