@@ -218,9 +218,11 @@ if df_referencia is not None:
         if unidades_calculo == "Kilos":
             total_col_name = "Kilos Totales"
             tabla_filtrada[total_col_name] = (tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 1000
+            format_total = "{:,.2f}"
         else: # Bultos x 40 Kilos
             total_col_name = "Bultos Totales"
-            tabla_filtrada[total_col_name] = (tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 40000
+            tabla_filtrada[total_col_name] = ((tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 40000).apply(np.ceil).astype(int)
+            format_total = "{:,.0f}"
 
         def highlight_closest(row):
             is_closest = row.name == closest_idx
@@ -234,7 +236,7 @@ if df_referencia is not None:
             "Cons_Acum": "{:,.0f}", 
             "Saldo": "{:,.0f}", 
             "Mortalidad_Acumulada": "{:,.0f}",
-            total_col_name: "{:,.2f}"
+            total_col_name: format_total
         }
 
         st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format(format_dict))
