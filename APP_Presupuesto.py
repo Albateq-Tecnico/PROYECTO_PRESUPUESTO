@@ -214,11 +214,30 @@ if df_referencia is not None:
             tabla_filtrada['Mortalidad_Acumulada'] = 0
             tabla_filtrada['Saldo'] = aves_programadas
 
+        # --- CÁLCULO DE CONSUMO TOTAL (Kilos o Bultos) ---
+        if unidades_calculo == "Kilos":
+            total_col_name = "Kilos Totales"
+            tabla_filtrada[total_col_name] = (tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 1000
+        else: # Bultos x 40 Kilos
+            total_col_name = "Bultos Totales"
+            tabla_filtrada[total_col_name] = (tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 40000
+
         def highlight_closest(row):
             is_closest = row.name == closest_idx
             return ['background-color: #ffcccc' if is_closest else '' for _ in row]
+        
+        format_dict = {
+            "Peso_Estimado": "{:,.0f}", 
+            "Cons_Acum_Ajustado": "{:,.0f}", 
+            "Peso": "{:,.0f}", 
+            "Dia": "{:,.0f}", 
+            "Cons_Acum": "{:,.0f}", 
+            "Saldo": "{:,.0f}", 
+            "Mortalidad_Acumulada": "{:,.0f}",
+            total_col_name: "{:,.2f}"
+        }
 
-        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format({"Peso_Estimado": "{:,.0f}", "Cons_Acum_Ajustado": "{:,.0f}", "Peso": "{:,.0f}", "Dia": "{:,.0f}", "Cons_Acum": "{:,.0f}", "Saldo": "{:,.0f}", "Mortalidad_Acumulada": "{:,.0f}"}))
+        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO']).style.apply(highlight_closest, axis=1).format(format_dict))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
