@@ -242,7 +242,11 @@ if df_referencia is not None:
             total_col_name: format_total
         }
 
-        st.dataframe(tabla_filtrada.drop(columns=['RAZA', 'SEXO', 'Mortalidad_Acumulada']).style.apply(highlight_closest, axis=1).format(format_dict))
+        columnas_a_mostrar = [
+            'Dia', 'Fecha', 'Cons_Acum', 'Cons_Acum_Ajustado', 
+            'Peso', 'Peso_Estimado', 'Saldo', total_col_name, 'Fase_Alimento'
+        ]
+        st.dataframe(tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict))
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
