@@ -131,6 +131,10 @@ val_iniciador = st.sidebar.number_input("Valor Iniciador", min_value=0.0, value=
 val_engorde = st.sidebar.number_input("Valor Engorde", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
 val_retiro = st.sidebar.number_input("Valor Retiro", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
 
+st.sidebar.subheader("Análisis Económico")
+porcentaje_participacion_alimento = st.sidebar.number_input("Porcentaje de Participación del Alimento (%)", min_value=0.0, max_value=100.0, value=65.0, step=0.01, format="%.2f")
+st.sidebar.info("Se recomienda que la participación del alimento esté entre 60% y 80%.")
+
 
 # --- ÁREA PRINCIPAL ---
 
@@ -358,6 +362,72 @@ if df_referencia is not None:
 
         else:
             st.info("Ingrese un número de 'Aves Programadas' y un 'Peso Objetivo' mayores a 0 para calcular el presupuesto.")
+
+        # --- 7. ANÁLISIS ECONÓMICO ---
+        st.subheader("Análisis Económico del Presupuesto")
+
+        if 'consumo_por_fase' in locals() and 'closest_idx' in locals():
+            # Recolectar los datos necesarios
+            consumo_total_kg = (consumo_por_fase.sum()) * factor_conversion_a_kg
+            aves_producidas = tabla_filtrada.loc[closest_idx, 'Saldo']
+            peso_final_estimado_gr = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
+            kilos_totales_producidos = (aves_producidas * peso_final_estimado_gr) / 1000
+            valor_alimento_presupuesto = costo_total # Ya calculado en la sección 6
+
+            # Evitar división por cero
+            if kilos_totales_producidos > 0 and aves_producidas > 0 and consumo_total_kg > 0 and porcentaje_participacion_alimento > 0:
+                # Calcular KPIs
+                conversion_presupuesto = consumo_total_kg / kilos_totales_producidos
+                costo_alimento_por_ave = valor_alimento_presupuesto / aves_producidas
+                costo_alimento_por_kilo_producido = valor_alimento_presupuesto / kilos_totales_producidos
+                
+                total_costo_presupuesto = valor_alimento_presupuesto / (porcentaje_participacion_alimento / 100)
+                total_costo_por_ave = total_costo_presupuesto / aves_producidas
+                total_costo_por_kilo = total_costo_presupuesto / kilos_totales_producidos
+
+                # Crear DataFrame
+                analisis_data = {
+                    "Métrica": [
+                        "Consumo Total Kilos",
+                        "Aves Producidas",
+                        "Kilos Totales Producidos",
+                        "Conversión Presupuesto",
+                        "Valor del Alimento ($) Presupuesto",
+                        "Costo Alimento por Ave ($)",
+                        "Costo Alimento por Kilo Producido ($)",
+                        "Costo Total del Lote ($)",
+                        "Costo Total por Ave ($)",
+                        "Costo Total por Kilo Producido ($)"
+                    ],
+                    "Valor": [
+                        consumo_total_kg,
+                        aves_producidas,
+                        kilos_totales_producidos,
+                        conversion_presupuesto,
+                        valor_alimento_presupuesto,
+                        costo_alimento_por_ave,
+                        costo_alimento_por_kilo_producido,
+                        total_costo_presupuesto,
+                        total_costo_por_ave,
+                        total_costo_por_kilo
+                    ]
+                }
+                df_analisis = pd.DataFrame(analisis_data)
+
+                # Aplicar Estilo
+                styler_analisis = df_analisis.style.format({"Valor": "{:,.2f}"})
+                styler_analisis.set_table_styles([
+                    {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white')]},
+                    {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5')]},
+                    {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#D3D3D3')]},
+                    {'selector': 'td, th', 'props': [('border', '1px solid #ccc')]}
+                ])
+                styler_analisis.hide(axis="index")
+                
+                st.info("Nota: La marca de agua directamente en la tabla no es soportada. Se ha aplicado el resto del estilo.")
+                st.dataframe(styler_analisis, use_container_width=True)
+            else:
+                st.warning("No se puede generar el análisis económico porque los valores de producción, consumo o participación son cero.")
     else:
         st.warning("No se encontraron datos de referencia para la combinación de RAZA y SEXO seleccionada.")
 else:
