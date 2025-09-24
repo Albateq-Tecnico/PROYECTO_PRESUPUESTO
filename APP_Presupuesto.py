@@ -260,7 +260,7 @@ if df_referencia is not None:
         ]
         styler = tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict)
         styler.set_table_styles([
-            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#B0B0B0')]}
+            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#7D7D7D')]}
         ], overwrite=False)
         styler.hide(axis="index")
         st.dataframe(styler)
@@ -349,7 +349,7 @@ if df_referencia is not None:
                     "Valor del Alimento ($)": "${:,.2f}"
                 })
                 styler_resumen.set_table_styles([
-                    {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#B0B0B0')]}
+                    {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#7D7D7D')]}
                 ], overwrite=False)
                 styler_resumen.hide(axis="index")
                 st.dataframe(styler_resumen)
