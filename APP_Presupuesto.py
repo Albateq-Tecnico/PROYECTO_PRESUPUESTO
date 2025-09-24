@@ -297,33 +297,41 @@ if df_referencia is not None:
             # Mostrar el gráfico en Streamlit
             st.pyplot(fig)
 
-        # 6. MOSTRAR RESUMEN DE PRESUPUESTO
+        # 6. MOSTRAR RESUMEN DE PRESUPUESTO (AJUSTADO POR MORTALIDAD)
         st.subheader("Resumen del Presupuesto de Alimento")
         if aves_programadas > 0 and peso_objetivo > 0:
-            engorde = consumo_total_objetivo_ave - (pre_iniciador + iniciador + retiro)
-            if engorde < 0: engorde = 0
-
-            resumen_alimento = {
-                "Fase de Alimento": ["Pre-iniciador", "Iniciador", "Engorde", "Retiro", "Total"],
-                "Consumo (gr/ave)": [pre_iniciador, iniciador, engorde, retiro, consumo_total_objetivo_ave]
-            }
-            df_resumen = pd.DataFrame(resumen_alimento)
-            df_resumen["Consumo Total (gramos)"] = df_resumen["Consumo (gr/ave)"] * aves_programadas
-
+            
+            # Definir unidad_str basado en la selección del usuario
             if unidades_calculo == "Kilos":
-                df_resumen["Consumo Total (Unidades)"] = df_resumen["Consumo Total (gramos)"] / 1000
                 unidad_str = "Kilos"
             else:
-                df_resumen["Consumo Total (Unidades)"] = df_resumen["Consumo Total (gramos)"] / 40000
                 unidad_str = "Bultos x 40kg"
-            
-            df_resumen.rename(columns={"Consumo Total (Unidades)": f"Consumo Total ({unidad_str})"}, inplace=True)
 
-            st.dataframe(df_resumen.style.format({
-                "Consumo (gr/ave)": "{:,.0f}",
-                "Consumo Total (gramos)": "{:,.0f}",
-                f"Consumo Total ({unidad_str})": "{:,.2f}"
-            }))
+            # Calcular consumo total por fase desde la tabla principal (que ya incluye mortalidad)
+            if daily_col_name in tabla_filtrada.columns:
+                consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col_name].sum()
+                
+                # Obtener los valores para cada fase, con 0 si una fase no existe
+                pre_iniciador_total = consumo_por_fase.get('Pre-iniciador', 0)
+                iniciador_total = consumo_por_fase.get('Iniciador', 0)
+                engorde_total = consumo_por_fase.get('Engorde', 0)
+                retiro_total = consumo_por_fase.get('Retiro', 0)
+                
+                total_general = consumo_por_fase.sum()
+
+                resumen_data = {
+                    "Fase de Alimento": ["Pre-iniciador", "Iniciador", "Engorde", "Retiro", "Total"],
+                    f"Consumo Total ({unidad_str})": [pre_iniciador_total, iniciador_total, engorde_total, retiro_total, total_general]
+                }
+                df_resumen_ajustado = pd.DataFrame(resumen_data)
+
+                st.dataframe(df_resumen_ajustado.style.format({
+                    f"Consumo Total ({unidad_str})": "{:,.0f}"
+                }))
+
+            else:
+                st.warning("No se pudo calcular el resumen ajustado.")
+
         else:
             st.info("Ingrese un número de 'Aves Programadas' y un 'Peso Objetivo' mayores a 0 para calcular el presupuesto.")
     else:
