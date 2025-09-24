@@ -449,7 +449,7 @@ if df_referencia is not None:
 
                 ax_pie.axis('equal')
                 ax_pie.legend(labels, loc="center", fontsize='small')
-                ax_pie.text(0, 0, f"Total: ${total_costo_por_kilo:,.2f}/Kg",
+                ax_pie.text(0, -0.2, f"Total: ${total_costo_por_kilo:,.2f}/Kg",
                            horizontalalignment='center', verticalalignment='center',
                            fontsize=12, color='black')
                 
