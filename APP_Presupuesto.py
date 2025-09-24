@@ -424,6 +424,33 @@ if df_referencia is not None:
                 ])
                 styler_analisis.hide(axis="index")
                 st.dataframe(styler_analisis, use_container_width=True)
+
+                # --- 8. GRÁFICO DE PARTICIPACIÓN DE COSTOS ---
+                st.subheader("Participación de Costos")
+
+                # Datos para el gráfico
+                otros_costos = total_costo_presupuesto - valor_alimento_presupuesto
+                sizes = [valor_alimento_presupuesto, otros_costos]
+                labels = [
+                    f"Alimento: ${valor_alimento_presupuesto:,.0f}",
+                    f"Otros Costos: ${otros_costos:,.0f}"
+                ]
+                colors = ['darkred', 'lightcoral']
+                explode = (0.1, 0)
+
+                fig_pie, ax_pie = plt.subplots()
+                ax_pie.pie(sizes, explode=explode, labels=None, colors=colors, autopct='%1.1f%%',
+                           shadow=True, startangle=90, pctdistance=0.85)
+
+                # Dibujar un círculo en el centro para hacer un 'donut chart'
+                centre_circle = plt.Circle((0,0),0.70,fc='white')
+                fig_pie.gca().add_artist(centre_circle)
+
+                ax_pie.axis('equal')
+                ax_pie.legend(labels, loc="center", fontsize='small')
+                
+                st.pyplot(fig_pie)
+                
             else:
                 st.warning("No se puede generar el análisis económico porque los valores de producción, consumo o participación son cero.")
     else:
