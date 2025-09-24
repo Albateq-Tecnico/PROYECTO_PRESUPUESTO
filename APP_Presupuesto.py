@@ -251,7 +251,12 @@ if df_referencia is not None:
             'Dia', 'Fecha', 'Cons_Acum', 'Cons_Acum_Ajustado', 
             'Peso', 'Peso_Estimado', 'Saldo', daily_col_name, total_col_name, 'Fase_Alimento'
         ]
-        st.dataframe(tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict))
+        styler = tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict)
+        styler.set_table_styles([
+            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#f2f2f2')]}
+        ], overwrite=False)
+        styler.hide(axis="index")
+        st.dataframe(styler)
 
         # 5. MOSTRAR GRÁFICO
         st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
