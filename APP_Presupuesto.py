@@ -278,10 +278,20 @@ if df_referencia is not None:
 
             # Añadir marca de agua
             try:
+                from matplotlib.offsetbox import OffsetImage, AnnotationBbox
                 logo_img = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
-                # Posicionar la marca de agua en la esquina inferior derecha
-                fig.figimage(logo_img, xo=fig.bbox.xmax - logo_img.width - 10, yo=10, alpha=0.15, zorder=1)
-            except FileNotFoundError:
+                
+                # Coordenadas de datos para la esquina inferior derecha de la imagen
+                x_coord = tabla_filtrada['Dia'].max()
+                y_coord = 1 
+
+                imagebox = OffsetImage(logo_img, zoom=0.2, alpha=0.15)
+                
+                ab = AnnotationBbox(imagebox, (x_coord, y_coord),
+                                    frameon=False,
+                                    box_alignment=(1, 0)) # Alinear esquina inferior derecha
+                ax.add_artist(ab)
+            except (FileNotFoundError, ImportError):
                 pass # No hacer nada si no se encuentra el logo
 
             # Mostrar el gráfico en Streamlit
