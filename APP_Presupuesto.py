@@ -423,8 +423,6 @@ if df_referencia is not None:
                     {'selector': 'td, th', 'props': [('border', '1px solid #ccc')]}
                 ])
                 styler_analisis.hide(axis="index")
-                
-                st.info("Nota: La marca de agua directamente en la tabla no es soportada. Se ha aplicado el resto del estilo.")
                 st.dataframe(styler_analisis, use_container_width=True)
             else:
                 st.warning("No se puede generar el análisis económico porque los valores de producción, consumo o participación son cero.")
