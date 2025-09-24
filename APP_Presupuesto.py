@@ -212,8 +212,8 @@ if df_referencia is not None:
         tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
         # 4. MOSTRAR TABLA PRINCIPAL
-        tabla_filtrada = tabla_filtrada[tabla_filtrada['Peso_Estimado'] <= peso_objetivo * 1.05]
         closest_idx = (tabla_filtrada['Peso_Estimado'] - peso_objetivo).abs().idxmin()
+        tabla_filtrada = tabla_filtrada.loc[:closest_idx].copy()
 
         # --- CÁLCULO DE SALDO DE AVES ---
         dias_ciclo = tabla_filtrada.loc[closest_idx, 'Dia']
