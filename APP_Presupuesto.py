@@ -311,22 +311,23 @@ if df_referencia is not None:
             if daily_col_name in tabla_filtrada.columns:
                 consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col_name].sum()
                 
-                # Asegurarse de que todas las fases están presentes
-                fases = ["Pre-iniciador", "Iniciador", "Engorde", "Retiro"]
-                for fase in fases:
-                    if fase not in consumo_por_fase:
-                        consumo_por_fase[fase] = 0
+                # Obtener los valores para cada fase, con 0 si una fase no existe
+                pre_iniciador_total = consumo_por_fase.get('Pre-iniciador', 0)
+                iniciador_total = consumo_por_fase.get('Iniciador', 0)
+                engorde_total = consumo_por_fase.get('Engorde', 0)
+                retiro_total = consumo_por_fase.get('Retiro', 0)
                 
-                consumo_por_fase['Total'] = consumo_por_fase.reindex(fases).sum()
+                total_general = consumo_por_fase.sum()
 
-                # Reordenar para un orden lógico
-                consumo_por_fase = consumo_por_fase.reindex(fases + ['Total'])
+                resumen_data = {
+                    "Fase de Alimento": ["Pre-iniciador", "Iniciador", "Engorde", "Retiro", "Total"],
+                    f"Consumo Total ({unidad_str})": [pre_iniciador_total, iniciador_total, engorde_total, retiro_total, total_general]
+                }
+                df_resumen_ajustado = pd.DataFrame(resumen_data)
 
-                # Convertir a DataFrame y transponer
-                df_resumen_transpuesto = consumo_por_fase.to_frame(name=f"Consumo Total ({unidad_str})").T
-                
-                # Formatear y mostrar
-                st.dataframe(df_resumen_transpuesto.style.format("{:,.0f}"))
+                st.dataframe(df_resumen_ajustado.style.format({
+                    f"Consumo Total ({unidad_str})": "{:,.0f}"
+                }))
 
             else:
                 st.warning("No se pudo calcular el resumen ajustado.")
