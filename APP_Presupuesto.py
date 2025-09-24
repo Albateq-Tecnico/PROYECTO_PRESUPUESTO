@@ -433,20 +433,6 @@ else:
 
 st.markdown("---")
 
-# --- VERIFICACIÓN DE DATOS CARGADOS ---
-if st.checkbox("Mostrar datos crudos cargados para verificación"):
-    st.subheader("1. Coeficientes de Peso (Cons_Acum_Peso.csv)")
-    if df_coeffs is not None:
-        st.dataframe(df_coeffs.head())
-
-    st.subheader("2. Coeficientes de Peso 15 (Cons_Acum_Peso_15.csv)")
-    if df_coeffs_15 is not None:
-        st.dataframe(df_coeffs_15.head())
-
-    st.subheader("3. Tabla de Referencia (ROSS_COBB_HUBBARD_2025.csv)")
-    if df_referencia is not None:
-        st.dataframe(df_referencia.head())
-
 st.markdown("""
 <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
 Nota de Responsabilidad: Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
