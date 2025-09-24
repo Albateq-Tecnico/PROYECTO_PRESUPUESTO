@@ -124,6 +124,13 @@ st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 st.sidebar.subheader("Configuración de Unidades")
 unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["Kilos", "Bultos x 40 Kilos"])
 
+# --- COSTOS DE ALIMENTO ---
+st.sidebar.subheader("Costos de Alimento ($/Kg)")
+val_pre_iniciador = st.sidebar.number_input("Valor Pre-iniciador", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
+val_iniciador = st.sidebar.number_input("Valor Iniciador", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
+val_engorde = st.sidebar.number_input("Valor Engorde", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
+val_retiro = st.sidebar.number_input("Valor Retiro", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
+
 
 # --- ÁREA PRINCIPAL ---
 
@@ -301,34 +308,46 @@ if df_referencia is not None:
         st.subheader("Resumen del Presupuesto de Alimento")
         if aves_programadas > 0 and peso_objetivo > 0:
             
-            # Definir unidad_str basado en la selección del usuario
             if unidades_calculo == "Kilos":
                 unidad_str = "Kilos"
+                factor_conversion_a_kg = 1
             else:
                 unidad_str = "Bultos x 40kg"
+                factor_conversion_a_kg = 40
 
-            # Calcular consumo total por fase desde la tabla principal (que ya incluye mortalidad)
             if daily_col_name in tabla_filtrada.columns:
                 consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col_name].sum()
                 
-                # Obtener los valores para cada fase, con 0 si una fase no existe
-                pre_iniciador_total = consumo_por_fase.get('Pre-iniciador', 0)
-                iniciador_total = consumo_por_fase.get('Iniciador', 0)
-                engorde_total = consumo_por_fase.get('Engorde', 0)
-                retiro_total = consumo_por_fase.get('Retiro', 0)
-                
-                total_general = consumo_por_fase.sum()
+                pre_iniciador_unidades = consumo_por_fase.get('Pre-iniciador', 0)
+                iniciador_unidades = consumo_por_fase.get('Iniciador', 0)
+                engorde_unidades = consumo_por_fase.get('Engorde', 0)
+                retiro_unidades = consumo_por_fase.get('Retiro', 0)
+                total_unidades = consumo_por_fase.sum()
+
+                # Convertir a Kilos para el cálculo de costos
+                pre_iniciador_kg = pre_iniciador_unidades * factor_conversion_a_kg
+                iniciador_kg = iniciador_unidades * factor_conversion_a_kg
+                engorde_kg = engorde_unidades * factor_conversion_a_kg
+                retiro_kg = retiro_unidades * factor_conversion_a_kg
+
+                # Calcular costos
+                costo_pre_iniciador = pre_iniciador_kg * val_pre_iniciador
+                costo_iniciador = iniciador_kg * val_iniciador
+                costo_engorde = engorde_kg * val_engorde
+                costo_retiro = retiro_kg * val_retiro
+                costo_total = costo_pre_iniciador + costo_iniciador + costo_engorde + costo_retiro
 
                 resumen_data = {
                     "Fase de Alimento": ["Pre-iniciador", "Iniciador", "Engorde", "Retiro", "Total"],
-                    f"Consumo Total ({unidad_str})": [pre_iniciador_total, iniciador_total, engorde_total, retiro_total, total_general]
+                    f"Consumo Total ({unidad_str})": [pre_iniciador_unidades, iniciador_unidades, engorde_unidades, retiro_unidades, total_unidades],
+                    "Valor del Alimento ($)": [costo_pre_iniciador, costo_iniciador, costo_engorde, costo_retiro, costo_total]
                 }
                 df_resumen_ajustado = pd.DataFrame(resumen_data)
 
                 st.dataframe(df_resumen_ajustado.style.format({
-                    f"Consumo Total ({unidad_str})": "{:,.0f}"
+                    f"Consumo Total ({unidad_str})": "{:,.0f}",
+                    "Valor del Alimento ($)": "${:,.2f}"
                 }))
-
             else:
                 st.warning("No se pudo calcular el resumen ajustado.")
 
