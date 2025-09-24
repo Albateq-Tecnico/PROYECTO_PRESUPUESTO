@@ -260,7 +260,7 @@ if df_referencia is not None:
         ]
         styler = tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict)
         styler.set_table_styles([
-            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#cccccc')]}
+            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#B0B0B0')]}
         ], overwrite=False)
         styler.hide(axis="index")
         st.dataframe(styler)
@@ -344,10 +344,15 @@ if df_referencia is not None:
                 }
                 df_resumen_ajustado = pd.DataFrame(resumen_data)
 
-                st.dataframe(df_resumen_ajustado.style.format({
+                styler_resumen = df_resumen_ajustado.style.format({
                     f"Consumo Total ({unidad_str})": "{:,.0f}",
                     "Valor del Alimento ($)": "${:,.2f}"
-                }))
+                })
+                styler_resumen.set_table_styles([
+                    {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#B0B0B0')]}
+                ], overwrite=False)
+                styler_resumen.hide(axis="index")
+                st.dataframe(styler_resumen)
             else:
                 st.warning("No se pudo calcular el resumen ajustado.")
 
