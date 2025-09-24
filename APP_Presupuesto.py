@@ -431,9 +431,10 @@ if df_referencia is not None:
                 # Datos para el gráfico
                 otros_costos = total_costo_presupuesto - valor_alimento_presupuesto
                 sizes = [valor_alimento_presupuesto, otros_costos]
+                costo_otros_por_kilo_producido = total_costo_por_kilo - costo_alimento_por_kilo_producido
                 labels = [
-                    f"Alimento: ${valor_alimento_presupuesto:,.0f}",
-                    f"Otros Costos: ${otros_costos:,.0f}"
+                    f"Alimento: ${costo_alimento_por_kilo_producido:,.2f} / Kg Producido",
+                    f"Otros Costos: ${costo_otros_por_kilo_producido:,.2f} / Kg Producido"
                 ]
                 colors = ['darkred', 'lightcoral']
                 explode = (0.1, 0)
@@ -448,6 +449,9 @@ if df_referencia is not None:
 
                 ax_pie.axis('equal')
                 ax_pie.legend(labels, loc="center", fontsize='small')
+                ax_pie.text(0, 0, f"Total: ${total_costo_por_kilo:,.2f}/Kg",
+                           horizontalalignment='center', verticalalignment='center',
+                           fontsize=12, color='black')
                 
                 st.pyplot(fig_pie)
                 
