@@ -253,7 +253,7 @@ if df_referencia is not None:
         ]
         styler = tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict)
         styler.set_table_styles([
-            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#f2f2f2')]}
+            {'selector': 'tr:nth-child(even)', 'props': [('background-color', '#d3d3d3')]}
         ], overwrite=False)
         styler.hide(axis="index")
         st.dataframe(styler)
