@@ -121,11 +121,11 @@ mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo en %", min_va
 
 # --- CONDICIONES DE GRANJA ---
 st.sidebar.subheader("Condiciones de Granja")
-tipo_granja = st.sidebar.radio("Tipo de GRANJA", ["TUNEL", "MEJORADA", "NATURAL"])
+tipo_granja = st.sidebar.radio("Tipo de GRANJA", ["TUNEL", "MEJORADA", "NATURAL"], index=2)
 productividad_options = {"TUNEL": 100.0, "MEJORADA": 97.5, "NATURAL": 95.0}
 productividad = st.sidebar.number_input("Productividad (%)", value=productividad_options[tipo_granja], min_value=0.0, max_value=110.0, step=0.1, format="%.2f", help=f"Productividad teórica: {productividad_options}")
 
-asnm = st.sidebar.radio("Altitud (ASNM)", ["ALTA >2000 msnm", "MEDIA <2000 y >1000 msnm", "BAJA < 1000 msnm"])
+asnm = st.sidebar.radio("Altitud (ASNM)", ["ALTA >2000 msnm", "MEDIA <2000 y >1000 msnm", "BAJA < 1000 msnm"], index=2)
 
 # --- LÓGICA DE RESTRICCIÓN ---
 st.sidebar.subheader("Programa de Alimentación")
@@ -357,7 +357,7 @@ try:
             
             fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
             sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
-            labels = [f"Alimento\n${s:,.2f}" for s in sizes]
+            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Otros Costos\n${sizes[1]:,.2f}"]
             ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
             ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
             st.pyplot(fig_pie)
