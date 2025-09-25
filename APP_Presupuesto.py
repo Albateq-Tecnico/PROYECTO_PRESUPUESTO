@@ -421,18 +421,18 @@ if df_referencia is not None:
                         "Costo Total por Kilo Producido ($)"
                     ],
                     "Valor": [
-                        "{:.2f}".format(consumo_total_kg),
-                        "{:.0f}".format(aves_producidas),
-                        "{:.2f}".format(kilos_totales_producidos),
-                        "{:.0f}".format(consumo_por_ave_gr),
-                        "{:.0f}".format(peso_final_estimado_gr),
-                        "{:.3f}".format(conversion_presupuesto),
-                        "${:,.2f}".format(valor_alimento_presupuesto),
-                        "${:,.2f}".format(costo_alimento_por_ave),
-                        "${:,.2f}".format(costo_alimento_por_kilo_producido),
-                        "${:,.2f}".format(total_costo_presupuesto),
-                        "${:,.2f}".format(total_costo_por_ave),
-                        "${:,.2f}".format(total_costo_por_kilo)
+                        "{_2f}".format(consumo_total_kg),
+                        "{_0f}".format(aves_producidas),
+                        "{_2f}".format(kilos_totales_producidos),
+                        "{_0f}".format(consumo_por_ave_gr),
+                        "{_0f}".format(peso_final_estimado_gr),
+                        "{_3f}".format(conversion_presupuesto),
+                        "${_2f}".format(valor_alimento_presupuesto),
+                        "${_2f}".format(costo_alimento_por_ave),
+                        "${_2f}".format(costo_alimento_por_kilo_producido),
+                        "${_2f}".format(total_costo_presupuesto),
+                        "${_2f}".format(total_costo_por_ave),
+                        "${_2f}".format(total_costo_por_kilo)
                     ]
                 }
                 df_analisis = pd.DataFrame(analisis_data)
