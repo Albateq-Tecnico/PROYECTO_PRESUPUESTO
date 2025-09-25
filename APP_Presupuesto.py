@@ -284,22 +284,42 @@ try:
     
     if kilos_totales_producidos > 0 and porcentaje_participacion_alimento > 0:
         costo_total_lote = costo_total_alimento / (porcentaje_participacion_alimento / 100)
+        costo_total_kilo = costo_total_lote / kilos_totales_producidos
+        conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
+
+        # --- Cálculo del Costo por Mortalidad ---
+        costo_promedio_kg_alimento = costo_total_alimento / consumo_total_kg if consumo_total_kg > 0 else 0
         
-        # Crear el DataFrame completo de KPIs
+        # Costo acumulado del alimento consumido por ave cada día
+        tabla_filtrada['Costo_Alimento_Acum_Ave'] = (tabla_filtrada['Cons_Acum_Ajustado'] / 1000) * costo_promedio_kg_alimento
+        
+        # Mortalidad diaria (no acumulada)
+        tabla_filtrada['Mortalidad_Diaria'] = tabla_filtrada['Mortalidad_Acumulada'].diff().fillna(0)
+        
+        # Costo del alimento desperdiciado por la mortalidad de cada día
+        costo_desperdicio = (tabla_filtrada['Mortalidad_Diaria'] * tabla_filtrada['Costo_Alimento_Acum_Ave']).sum()
+
+        # --- Presentación de KPIs Clave ---
+        st.subheader("Indicadores de Eficiencia Clave")
+        kpi_cols = st.columns(3)
+        kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
+        kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
+        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio:,.2f}", help="Costo estimado del alimento consumido por las aves que murieron antes del final del ciclo.")
+
+        st.markdown("---")
+
+        # --- KPIs Detallados ---
+        st.subheader("Análisis de Costos Detallado")
         kpi_data = {
             "Métrica": [
                 "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
-                "Conversión Alimenticia", "Costo Alimento / Ave ($)", "Costo Alimento / Kilo ($)",
-                "Costo Total / Ave ($)", "Costo Total / Kilo ($)", "Costo Total del Lote ($)"
+                "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)",
+                "Costo Total Alimento ($)", "Costo por Mortalidad ($)", "Costo Total de Producción ($)"
             ],
             "Valor": [
                 aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj,
-                (consumo_total_kg / kilos_totales_producidos) if kilos_totales_producidos > 0 else 0,
-                (costo_total_alimento / aves_producidas) if aves_producidas > 0 else 0,
-                (costo_total_alimento / kilos_totales_producidos) if kilos_totales_producidos > 0 else 0,
-                (costo_total_lote / aves_producidas) if aves_producidas > 0 else 0,
-                (costo_total_lote / kilos_totales_producidos) if kilos_totales_producidos > 0 else 0,
-                costo_total_lote
+                costo_total_alimento / kilos_totales_producidos, costo_total_kilo,
+                costo_total_alimento, costo_desperdicio, costo_total_lote
             ]
         }
         df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
@@ -311,28 +331,22 @@ try:
         df_kpi2 = df_kpi.iloc[mid_point:]
 
         col1, col2 = st.columns(2)
-
         with col1:
             st.dataframe(style_kpi_df(df_kpi1), use_container_width=True)
-
         with col2:
             if not df_kpi2.empty:
                 st.dataframe(style_kpi_df(df_kpi2), use_container_width=True)
 
-        # Visualización de gráficos en columnas
+        # --- Gráficos ---
         st.markdown("---")
         col1_graf, col2_graf = st.columns(2)
 
         with col1_graf:
-            # Gráfico de crecimiento
             st.subheader("Gráfico de Crecimiento")
             fig, ax = plt.subplots(figsize=(6, 5))
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
-            
             ax.plot(dia_obj, peso_obj, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj:,.0f} gr")
-            
-            # Añadir marca de agua
             try:
                 img = plt.imread(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
                 imagebox = OffsetImage(img, zoom=0.4, alpha=0.2)
@@ -342,7 +356,6 @@ try:
                 ax.add_artist(ab)
             except FileNotFoundError:
                 pass
-
             ax.legend()
             ax.set_xlabel("Día del Ciclo")
             ax.set_ylabel("Peso (gramos)")
@@ -350,10 +363,8 @@ try:
             st.pyplot(fig)
 
         with col2_graf:
-            # Gráfico de participación de costos
             st.subheader("Participación de Costos")
             costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-            costo_total_kilo = costo_total_lote / kilos_totales_producidos
             
             fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
             sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
