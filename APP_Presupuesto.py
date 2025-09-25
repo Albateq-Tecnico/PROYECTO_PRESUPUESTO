@@ -91,6 +91,20 @@ mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo en %", min_va
 # --- CONDICIONES DE GRANJA ---
 st.sidebar.subheader("Condiciones de Granja")
 tipo_granja = st.sidebar.radio("Tipo de GRANJA", ["TUNEL", "MEJORADA", "NATURAL"])
+
+# Productividad según el tipo de granja
+productividad_options = {"TUNEL": 100.0, "MEJORADA": 97.5, "NATURAL": 95.0}
+default_productividad = productividad_options[tipo_granja]
+productividad = st.sidebar.number_input(
+    "Productividad (%)",
+    value=default_productividad,
+    min_value=0.0,
+    max_value=110.0,
+    step=0.1,
+    format="%.2f",
+    help="Productividad teórica según el tipo de granja. TÚNEL: 100%, MEJORADA: 97.5%, NATURAL: 95%"
+)
+
 asnm = st.sidebar.radio("Altitud (ASNM)", ["ALTA >2000 msnm", "MEDIA <2000 y >1000 msnm", "BAJA < 1000 msnm"])
 
 # --- LÓGICA DE RESTRICCIÓN ---
@@ -371,7 +385,7 @@ if df_referencia is not None:
             consumo_total_kg = (consumo_por_fase.sum()) * factor_conversion_a_kg
             aves_producidas = tabla_filtrada.loc[closest_idx, 'Saldo']
             peso_final_estimado_gr = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
-            kilos_totales_producidos = (aves_producidas * peso_final_estimado_gr) / 1000
+            kilos_totales_producidos = ((aves_producidas * peso_final_estimado_gr) / 1000) * (productividad / 100.0)
             valor_alimento_presupuesto = costo_total # Ya calculado en la sección 6
 
             # Evitar división por cero
