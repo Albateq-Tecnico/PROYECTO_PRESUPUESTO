@@ -247,25 +247,7 @@ try:
     styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx else '' for _ in row], axis=1)
     st.dataframe(styler.hide(axis="index"), use_container_width=True)
     
-    # Gráfico de crecimiento
-    st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
-    ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
-    
-    dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
-    peso_obj = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
-    cons_obj = tabla_filtrada.loc[closest_idx, 'Cons_Acum_Ajustado']
-    
-    ax.plot(dia_obj, peso_obj, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj:,.0f} gr")
-    leyenda_texto = f"Edad: {dia_obj:.0f} días\nPeso: {peso_obj:,.0f} gr\nConsumo: {cons_obj:,.0f} gr"
-    ax.text(0.05, 0.95, leyenda_texto, transform=ax.transAxes, verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5))
-    
-    ax.legend()
-    ax.set_xlabel("Día del Ciclo")
-    ax.set_ylabel("Peso (gramos)")
-    ax.grid(True, linestyle='--', alpha=0.6)
-    st.pyplot(fig)
+    # El gráfico de crecimiento se ha movido más abajo
 
     # --- 4. ANÁLISIS ECONÓMICO Y RESUMEN (MEJORA: Flujo unificado) ---
     st.subheader("Resumen del Presupuesto de Alimento")
@@ -331,17 +313,51 @@ try:
             if not df_kpi2.empty:
                 st.dataframe(style_kpi_df(df_kpi2), use_container_width=True)
 
-        # Gráfico de participación de costos
-        st.subheader("Participación de Costos por Kilo Producido")
-        costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-        costo_total_kilo = costo_total_lote / kilos_totales_producidos
-        
-        fig_pie, ax_pie = plt.subplots(figsize=(4, 3))
-        sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
-        labels = [f"Alimento\n${s:,.2f}" for s in sizes]
-        ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
-        ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
-        st.pyplot(fig_pie)
+        # Visualización de gráficos en columnas
+        st.markdown("---")
+        col1_graf, col2_graf = st.columns(2)
+
+        with col1_graf:
+            # Gráfico de crecimiento
+            st.subheader("Gráfico de Crecimiento")
+            fig, ax = plt.subplots(figsize=(6, 5))
+            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
+            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
+            
+            dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
+            peso_obj = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
+            
+            ax.plot(dia_obj, peso_obj, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj:,.0f} gr")
+            
+            # Añadir marca de agua
+            try:
+                img = plt.imread(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+                imagebox = OffsetImage(img, zoom=0.4, alpha=0.2)
+                x_center = (ax.get_xlim()[0] + ax.get_xlim()[1]) / 2
+                y_center = (ax.get_ylim()[0] + ax.get_ylim()[1]) / 2
+                ab = AnnotationBbox(imagebox, (x_center, y_center), frameon=False, zorder=0)
+                ax.add_artist(ab)
+            except FileNotFoundError:
+                pass
+
+            ax.legend()
+            ax.set_xlabel("Día del Ciclo")
+            ax.set_ylabel("Peso (gramos)")
+            ax.grid(True, linestyle='--', alpha=0.6)
+            st.pyplot(fig)
+
+        with col2_graf:
+            # Gráfico de participación de costos
+            st.subheader("Participación de Costos")
+            costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
+            costo_total_kilo = costo_total_lote / kilos_totales_producidos
+            
+            fig_pie, ax_pie = plt.subplots(figsize=(6, 5))
+            sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
+            labels = [f"Alimento\n${s:,.2f}" for s in sizes]
+            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
+            ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
+            st.pyplot(fig_pie)
     else:
         st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación del alimento son cero.")
 
@@ -355,6 +371,6 @@ finally:
     st.markdown("---")
     st.markdown("""
     <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
-    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
+    <b>Nota de Responsabilidad:</b> Los resultados presentados por esta aplicación son estimaciones basadas en los datos de entrada y modelos estándar. Deben ser utilizados únicamente como una guía de apoyo y no reemplazan el juicio profesional, la experiencia en granja ni la consulta con personal técnico calificado. El usuario asume toda la responsabilidad por las decisiones tomadas basadas en la información aquí presentada.
     </div>
     """, unsafe_allow_html=True)
