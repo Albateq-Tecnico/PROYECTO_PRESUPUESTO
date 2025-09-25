@@ -402,12 +402,16 @@ if df_referencia is not None:
                 total_costo_por_ave = total_costo_presupuesto / aves_producidas
                 total_costo_por_kilo = total_costo_presupuesto / kilos_totales_producidos
 
+                consumo_por_ave_gr = (consumo_total_kg * 1000) / aves_producidas
+
                 # Crear DataFrame
                 analisis_data = {
                     "Métrica": [
                         "Consumo Total Kilos",
                         "Aves Producidas",
                         "Kilos Totales Producidos",
+                        "Consumo por ave en gramos",
+                        "Peso por ave en Gramos",
                         "Conversión Presupuesto",
                         "Valor del Alimento ($) Presupuesto",
                         "Costo Alimento por Ave ($)",
@@ -417,22 +421,24 @@ if df_referencia is not None:
                         "Costo Total por Kilo Producido ($)"
                     ],
                     "Valor": [
-                        consumo_total_kg,
-                        aves_producidas,
-                        kilos_totales_producidos,
-                        conversion_presupuesto,
-                        valor_alimento_presupuesto,
-                        costo_alimento_por_ave,
-                        costo_alimento_por_kilo_producido,
-                        total_costo_presupuesto,
-                        total_costo_por_ave,
-                        total_costo_por_kilo
+                        "{:.2f}".format(consumo_total_kg),
+                        "{:.0f}".format(aves_producidas),
+                        "{:.2f}".format(kilos_totales_producidos),
+                        "{:.0f}".format(consumo_por_ave_gr),
+                        "{:.0f}".format(peso_final_estimado_gr),
+                        "{:.3f}".format(conversion_presupuesto),
+                        "${:,.2f}".format(valor_alimento_presupuesto),
+                        "${:,.2f}".format(costo_alimento_por_ave),
+                        "${:,.2f}".format(costo_alimento_por_kilo_producido),
+                        "${:,.2f}".format(total_costo_presupuesto),
+                        "${:,.2f}".format(total_costo_por_ave),
+                        "${:,.2f}".format(total_costo_por_kilo)
                     ]
                 }
                 df_analisis = pd.DataFrame(analisis_data)
 
                 # Aplicar Estilo
-                styler_analisis = df_analisis.style.format({"Valor": "{:,.2f}"})
+                styler_analisis = df_analisis.style.set_properties(**{'text-align': 'right'}, subset=['Valor'])
                 styler_analisis.set_table_styles([
                     {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white')]},
                     {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5')]},
