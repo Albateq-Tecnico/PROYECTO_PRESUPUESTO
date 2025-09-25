@@ -207,6 +207,9 @@ if df_referencia is not None:
         if dias_15_adelante.any():
             tabla_filtrada.loc[dias_15_adelante, 'Peso_Estimado'] = calcular_peso(tabla_filtrada[dias_15_adelante], df_coeffs, "Cons_Acum_Peso.csv")
 
+        # Ajustar el Peso Estimado por Productividad
+        tabla_filtrada['Peso_Estimado'] = tabla_filtrada['Peso_Estimado'] * (productividad / 100.0)
+
         # 3. ASIGNAR FASE DE ALIMENTO (depende de Peso_Estimado para el consumo total)
         consumo_total_objetivo_ave = 0
         if peso_objetivo > 0 and 'Peso_Estimado' in tabla_filtrada.columns and tabla_filtrada['Peso_Estimado'].sum() > 0:
@@ -385,7 +388,7 @@ if df_referencia is not None:
             consumo_total_kg = (consumo_por_fase.sum()) * factor_conversion_a_kg
             aves_producidas = tabla_filtrada.loc[closest_idx, 'Saldo']
             peso_final_estimado_gr = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
-            kilos_totales_producidos = ((aves_producidas * peso_final_estimado_gr) / 1000) * (productividad / 100.0)
+            kilos_totales_producidos = (aves_producidas * peso_final_estimado_gr) / 1000
             valor_alimento_presupuesto = costo_total # Ya calculado en la sección 6
 
             # Evitar división por cero
