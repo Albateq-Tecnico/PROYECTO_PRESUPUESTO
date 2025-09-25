@@ -200,6 +200,12 @@ try:
 
     # Encontrar punto objetivo y truncar la tabla
     closest_idx = (tabla_filtrada['Peso_Estimado'] - peso_objetivo).abs().idxmin()
+    
+    # Obtener valores clave del punto objetivo para usarlos en KPIs y gráficos
+    dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
+    peso_obj = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
+    cons_obj = tabla_filtrada.loc[closest_idx, 'Cons_Acum_Ajustado']
+
     tabla_filtrada = tabla_filtrada.loc[:closest_idx].copy()
 
     # Asignar fase de alimento
@@ -323,9 +329,6 @@ try:
             fig, ax = plt.subplots(figsize=(6, 5))
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
-            
-            dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
-            peso_obj = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
             
             ax.plot(dia_obj, peso_obj, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj:,.0f} gr")
             
