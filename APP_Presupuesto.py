@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Sep 22 10:43:19 2025
-
 @author: juan.leyton
 """
 
@@ -12,59 +11,78 @@ from PIL import Image
 from datetime import date, timedelta
 from pathlib import Path
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
+# --- CONFIGURACIÓN DE LA PÁGINA (Debe ser el primer comando de Streamlit) ---
 st.set_page_config(
     page_title="Presupuesto Avícola",
     page_icon="🐔",
     layout="wide",
 )
 
-# --- DEFINIR RUTA BASE PARA ACCEDER A LOS ARCHIVOS ---
+# --- DEFINIR RUTA BASE (Buena práctica) ---
 BASE_DIR = Path(__file__).resolve().parent
 
-# --- CARGA DE DATOS CON CACHÉ ---
+# =============================================================================
+# --- FUNCIONES AUXILIARES (MEJORA: Centralizar la lógica) ---
+# =============================================================================
+
 @st.cache_data
-def load_data(file_path, separator=','):
-    # Cache buster: 1
+def load_data(file_path):
     """
-    Función para cargar datos desde un archivo CSV y guardarlos en caché.
-    Maneja errores si el archivo no se encuentra.
+    Función optimizada para cargar datos desde un archivo CSV y guardarlos en caché.
+    Maneja errores de forma robusta.
     """
     try:
-        df = pd.read_csv(file_path, sep=separator)
-        return df
+        return pd.read_csv(file_path)
     except FileNotFoundError:
-        st.error(f"Error: No se encontró el archivo en la ruta: {file_path}")
+        st.error(f"Error Crítico: No se encontró el archivo de datos en: {file_path}")
         return None
     except Exception as e:
-        st.error(f"Error al cargar o procesar el archivo {file_path}: {e}")
+        st.error(f"Error Crítico al cargar el archivo {file_path.name}: {e}")
         return None
 
-# Cargar los DataFrames usando rutas absolutas
-print("--- DEBUG: Loading df_coeffs...", flush=True)
+def clean_numeric_column(series):
+    """Convierte una columna a tipo numérico, manejando comas como decimales."""
+    if series.dtype == 'object':
+        return pd.to_numeric(series.str.replace(',', '.', regex=False), errors='coerce')
+    return series
+
+def calcular_peso_estimado(data, coeffs_df, raza, sexo):
+    """
+    Calcula el peso estimado usando coeficientes de regresión polinomial.
+    Devuelve una serie de ceros si no encuentra coeficientes.
+    """
+    if coeffs_df is None:
+        return pd.Series(0, index=data.index)
+    
+    coeffs_seleccion = coeffs_df[(coeffs_df['RAZA'] == raza) & (coeffs_df['SEXO'] == sexo)]
+    
+    if not coeffs_seleccion.empty:
+        params = coeffs_seleccion.iloc[0]
+        x = data['Cons_Acum_Ajustado']
+        # y = b + c1*x + c2*x^2 + c3*x^3 + c4*x^4
+        return (params['Intercept'] + params['Coef_1'] * x + params['Coef_2'] * (x**2) + 
+                params['Coef_3'] * (x**3) + params['Coef_4'] * (x**4))
+    
+    st.warning(f"No se encontraron coeficientes de peso para {raza} - {sexo}. El peso estimado será 0.")
+    return pd.Series(0, index=data.index)
+
+# --- CARGA DE DATOS ---
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
-print("--- DEBUG: df_coeffs loaded.", flush=True)
-
-print("--- DEBUG: Loading df_coeffs_15...", flush=True)
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
-print("--- DEBUG: df_coeffs_15 loaded.", flush=True)
-
-print("--- DEBUG: Loading df_referencia...", flush=True)
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
-print("--- DEBUG: df_referencia loaded.", flush=True)
 
-print("--- DEBUG: All dataframes loaded. Proceeding to render UI.", flush=True)
-
+# =============================================================================
 # --- PANEL LATERAL DE ENTRADAS (SIDEBAR) ---
+# =============================================================================
 
 st.sidebar.header("1. Valores de Entrada")
-
 try:
     logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
     st.sidebar.image(logo, width=150)
 except FileNotFoundError:
-    st.sidebar.warning("No se encontró el archivo del logo.")
+    st.sidebar.warning("Logo no encontrado.")
 
 # --- DATOS DEL LOTE ---
 st.sidebar.subheader("Datos del Lote")
@@ -77,8 +95,8 @@ if df_referencia is not None:
     razas = sorted(df_referencia['RAZA'].unique())
     sexos = sorted(df_referencia['SEXO'].unique())
 else:
-    razas = ["ROSS 308 AP", "COBB", "HUBBARD", "ROSS"] # Fallback
-    sexos = ["MIXTO", "HEMBRA", "MACHO"] # Fallback
+    razas = ["ROSS 308 AP", "COBB", "HUBBARD", "ROSS"]
+    sexos = ["MIXTO", "HEMBRA", "MACHO"]
 
 raza_seleccionada = st.sidebar.selectbox("RAZA", razas)
 sexo_seleccionado = st.sidebar.selectbox("SEXO", sexos)
@@ -91,450 +109,230 @@ mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo en %", min_va
 # --- CONDICIONES DE GRANJA ---
 st.sidebar.subheader("Condiciones de Granja")
 tipo_granja = st.sidebar.radio("Tipo de GRANJA", ["TUNEL", "MEJORADA", "NATURAL"])
-
-# Productividad según el tipo de granja
 productividad_options = {"TUNEL": 100.0, "MEJORADA": 97.5, "NATURAL": 95.0}
-default_productividad = productividad_options[tipo_granja]
-productividad = st.sidebar.number_input(
-    "Productividad (%)",
-    value=default_productividad,
-    min_value=0.0,
-    max_value=110.0,
-    step=0.1,
-    format="%.2f",
-    help="Productividad teórica según el tipo de granja. TÚNEL: 100%, MEJORADA: 97.5%, NATURAL: 95%"
-)
+productividad = st.sidebar.number_input("Productividad (%)", value=productividad_options[tipo_granja], min_value=0.0, max_value=110.0, step=0.1, format="%.2f", help=f"Productividad teórica: {productividad_options}")
 
 asnm = st.sidebar.radio("Altitud (ASNM)", ["ALTA >2000 msnm", "MEDIA <2000 y >1000 msnm", "BAJA < 1000 msnm"])
 
 # --- LÓGICA DE RESTRICCIÓN ---
 st.sidebar.subheader("Programa de Alimentación")
-if asnm == "ALTA >2000 msnm":
-    st.sidebar.info("Recomendación: Máxima restricción del 20%.")
-    max_restriccion = 20
-elif asnm == "MEDIA <2000 y >1000 msnm":
-    st.sidebar.info("Recomendación: Máxima restricción del 10%.")
-    max_restriccion = 10
-else: # BAJA < 1000 msnm
-    st.sidebar.info("Recomendación: No se recomienda restricción.")
-    max_restriccion = 0
-
+restriccion_map = {"ALTA >2000 msnm": 20, "MEDIA <2000 y >1000 msnm": 10, "BAJA < 1000 msnm": 0}
+max_restriccion = restriccion_map[asnm]
+st.sidebar.info(f"Recomendación: Máxima restricción del {max_restriccion}%.")
 restriccion_programada = st.sidebar.number_input("% Restricción Programado", min_value=0, max_value=100, value=max_restriccion, step=1, format="%d")
 
-if asnm == "ALTA >2000 msnm" and restriccion_programada > 20:
-    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) supera el 20% recomendado.")
-elif asnm == "MEDIA <2000 y >1000 msnm" and restriccion_programada > 10:
-    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) supera el 10% recomendado.")
-elif asnm == "BAJA < 1000 msnm" and restriccion_programada > 0:
-    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) no es recomendada para esta altitud.")
+if restriccion_programada > max_restriccion:
+    st.sidebar.warning(f"Advertencia: La restricción ({restriccion_programada}%) supera el {max_restriccion}% recomendado para esta altitud.")
 
 # --- CONSUMOS PROGRAMADOS ---
-pre_iniciador = st.sidebar.number_input("Pre-iniciador (gramos/ave)", min_value=0, max_value=300, value=150, step=10, format="%d")
-iniciador = st.sidebar.number_input("Iniciador (gramos/ave)", min_value=1, max_value=2000, value=1200, step=10, format="%d")
-retiro = st.sidebar.number_input("Retiro (gramos/ave)", min_value=0, max_value=2000, value=500, step=10, format="%d")
+pre_iniciador = st.sidebar.number_input("Pre-iniciador (gramos/ave)", 0, 300, 150, 10, format="%d")
+iniciador = st.sidebar.number_input("Iniciador (gramos/ave)", 1, 2000, 1200, 10, format="%d")
+retiro = st.sidebar.number_input("Retiro (gramos/ave)", 0, 2000, 500, 10, format="%d")
 st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 
-# --- UNIDADES ---
-st.sidebar.subheader("Configuración de Unidades")
+# --- UNIDADES Y COSTOS ---
+st.sidebar.subheader("Unidades y Costos")
 unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo para Alimento", ["Kilos", "Bultos x 40 Kilos"])
+val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, value=2200.0, step=0.01, format="%.2f")
+val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, value=2200.0, step=0.01, format="%.2f")
+val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, value=2200.0, step=0.01, format="%.2f")
+val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, value=2200.0, step=0.01, format="%.2f")
+porcentaje_participacion_alimento = st.sidebar.number_input("Participación del Alimento en Costo Total (%)", 0.0, 100.0, 65.0, 0.01, format="%.2f")
 
-# --- COSTOS DE ALIMENTO ---
-st.sidebar.subheader("Costos de Alimento ($/Kg)")
-val_pre_iniciador = st.sidebar.number_input("Valor Pre-iniciador", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
-val_iniciador = st.sidebar.number_input("Valor Iniciador", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
-val_engorde = st.sidebar.number_input("Valor Engorde", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
-val_retiro = st.sidebar.number_input("Valor Retiro", min_value=0.0, value=2200.0, step=0.01, format="%.2f")
-
-st.sidebar.subheader("Análisis Económico")
-porcentaje_participacion_alimento = st.sidebar.number_input("Porcentaje de Participación del Alimento (%)", min_value=0.0, max_value=100.0, value=65.0, step=0.01, format="%.2f")
-st.sidebar.info("Se recomienda que la participación del alimento esté entre 60% y 80%.")
-
-
+# =============================================================================
 # --- ÁREA PRINCIPAL ---
-
-st.markdown("""
-<div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
-👈 Para empezar, despliegue el Panel de Control en la esquina superior izquierda para introducir los datos de la granja.
-</div>
-""", unsafe_allow_html=True)
-try:
-    logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
-    st.image(logo, width=150)
-except FileNotFoundError:
-    st.warning("No se encontró el archivo del logo.")
+# =============================================================================
 
 st.title("🐔 Presupuesto Avícola")
 st.markdown("---")
-st.header("Resultados del Presupuesto")
 
+# --- MEJORA: CLÁUSULAS DE GUARDA PARA DETENER LA EJECUCIÓN SI LOS DATOS SON INVÁLIDOS ---
+if df_referencia is None:
+    st.error("No se pueden mostrar resultados porque el archivo de referencia principal no se cargó.")
+    st.stop()
 
-# --- FILTRAR Y MOSTRAR TABLA DE REFERENCIA ---
-st.subheader(f"Tabla de Referencia para la {raza_seleccionada} y {sexo_seleccionado} con Peso Objetivo {peso_objetivo}")
+if aves_programadas <= 0 or peso_objetivo <= 0:
+    st.info("👈 Ingrese un número de 'Aves Programadas' y un 'Peso Objetivo' mayores a 0 en el panel lateral para ver los resultados.")
+    st.stop()
 
-if df_referencia is not None:
-    # Filtrar el DataFrame basado en las selecciones de la barra lateral
+# --- MEJORA: MANEJO DE ERRORES CENTRALIZADO PARA TODA LA LÓGICA DE CÁLCULO ---
+try:
+    # 1. FILTRAR DATOS Y PREPARAR TABLA
     tabla_filtrada = df_referencia[
         (df_referencia['RAZA'] == raza_seleccionada) &
         (df_referencia['SEXO'] == sexo_seleccionado)
-    ].copy() # Usar .copy() para evitar SettingWithCopyWarning más adelante
+    ].copy()
 
-    # Calcular la nueva columna si la tabla no está vacía
-    if not tabla_filtrada.empty:
-        
-        # --- ORDEN DE CÁLCULOS REESTRUCTURADO ---
-        
-        # 1. AJUSTAR CONSUMO POR RESTRICCIÓN
-        factor_ajuste = 1 - (restriccion_programada / 100.0)
-        if tabla_filtrada['Cons_Acum'].dtype == 'object':
-            tabla_filtrada['Cons_Acum'] = pd.to_numeric(tabla_filtrada['Cons_Acum'].str.replace(',', '.'), errors='coerce')
-        tabla_filtrada['Cons_Acum_Ajustado'] = tabla_filtrada['Cons_Acum'] * factor_ajuste
+    if tabla_filtrada.empty:
+        st.warning(f"No se encontraron datos de referencia para la combinación de {raza_seleccionada} y {sexo_seleccionado}.")
+        st.stop()
+    
+    st.header("Resultados del Presupuesto")
+    
+    # MEJORA: Usar función auxiliar para limpiar columnas
+    tabla_filtrada['Cons_Acum'] = clean_numeric_column(tabla_filtrada['Cons_Acum'])
+    tabla_filtrada['Peso'] = clean_numeric_column(tabla_filtrada['Peso'])
 
-        # 2. CALCULAR PESO ESTIMADO (depende de Cons_Acum_Ajustado)
-        tabla_filtrada['Peso_Estimado'] = 0.0
-        def calcular_peso(data, coeffs_df, df_name):
-            if coeffs_df is None: return pd.Series(0, index=data.index)
-            coeffs_seleccion = coeffs_df[(coeffs_df['RAZA'] == raza_seleccionada) & (coeffs_df['SEXO'] == sexo_seleccionado)]
-            if not coeffs_seleccion.empty:
-                params = coeffs_seleccion.iloc[0]
-                x = data['Cons_Acum_Ajustado']
-                return (params['Intercept'] + params['Coef_1'] * x + params['Coef_2'] * (x**2) + params['Coef_3'] * (x**3) + params['Coef_4'] * (x**4))
-            else: return pd.Series(0, index=data.index)
-        
-        dias_1_14 = tabla_filtrada['Dia'] <= 14
-        dias_15_adelante = tabla_filtrada['Dia'] >= 15
-        if dias_1_14.any():
-             tabla_filtrada.loc[dias_1_14, 'Peso_Estimado'] = calcular_peso(tabla_filtrada[dias_1_14], df_coeffs_15, "Cons_Acum_Peso_15.csv")
-        if dias_15_adelante.any():
-            tabla_filtrada.loc[dias_15_adelante, 'Peso_Estimado'] = calcular_peso(tabla_filtrada[dias_15_adelante], df_coeffs, "Cons_Acum_Peso.csv")
+    # 2. CÁLCULOS SECUENCIALES
+    # Ajustar consumo por restricción
+    factor_ajuste = 1 - (restriccion_programada / 100.0)
+    tabla_filtrada['Cons_Acum_Ajustado'] = tabla_filtrada['Cons_Acum'] * factor_ajuste
 
-        # Ajustar el Peso Estimado por Productividad
-        tabla_filtrada['Peso_Estimado'] = tabla_filtrada['Peso_Estimado'] * (productividad / 100.0)
+    # Calcular peso estimado
+    dias_1_14 = tabla_filtrada['Dia'] <= 14
+    dias_15_adelante = tabla_filtrada['Dia'] >= 15
+    tabla_filtrada.loc[dias_1_14, 'Peso_Estimado'] = calcular_peso_estimado(tabla_filtrada[dias_1_14], df_coeffs_15, raza_seleccionada, sexo_seleccionado)
+    tabla_filtrada.loc[dias_15_adelante, 'Peso_Estimado'] = calcular_peso_estimado(tabla_filtrada[dias_15_adelante], df_coeffs, raza_seleccionada, sexo_seleccionado)
+    tabla_filtrada['Peso_Estimado'] *= (productividad / 100.0)
 
-        # 3. ASIGNAR FASE DE ALIMENTO (depende de Peso_Estimado para el consumo total)
-        consumo_total_objetivo_ave = 0
-        if peso_objetivo > 0 and 'Peso_Estimado' in tabla_filtrada.columns and tabla_filtrada['Peso_Estimado'].sum() > 0:
-            df_interp = tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
-            consumo_total_objetivo_ave = np.interp(peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
+    # Encontrar punto objetivo y truncar la tabla
+    closest_idx = (tabla_filtrada['Peso_Estimado'] - peso_objetivo).abs().idxmin()
+    tabla_filtrada = tabla_filtrada.loc[:closest_idx].copy()
 
-        limite_preiniciador = pre_iniciador
-        limite_iniciador = pre_iniciador + iniciador
-        limite_inicio_retiro = consumo_total_objetivo_ave - retiro if retiro > 0 and consumo_total_objetivo_ave > retiro else np.inf
+    # Asignar fase de alimento
+    df_interp = tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+    consumo_total_objetivo_ave = np.interp(peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
+    
+    limite_pre = pre_iniciador
+    limite_ini = pre_iniciador + iniciador
+    limite_ret = consumo_total_objetivo_ave - retiro if retiro > 0 else np.inf
 
-        conditions = [
-            tabla_filtrada['Cons_Acum_Ajustado'] <= limite_preiniciador,
-            tabla_filtrada['Cons_Acum_Ajustado'].between(limite_preiniciador, limite_iniciador, inclusive='right'),
-            tabla_filtrada['Cons_Acum_Ajustado'] > limite_inicio_retiro
-        ]
-        choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
-        tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
+    conditions = [
+        tabla_filtrada['Cons_Acum_Ajustado'] <= limite_pre,
+        tabla_filtrada['Cons_Acum_Ajustado'].between(limite_pre, limite_ini, inclusive='right'),
+        tabla_filtrada['Cons_Acum_Ajustado'] > limite_ret
+    ]
+    choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
+    tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
+    
+    # Calcular saldo de aves (mortalidad)
+    dias_ciclo = tabla_filtrada.loc[closest_idx, 'Dia']
+    total_mortalidad_aves = aves_programadas * (mortalidad_objetivo / 100.0)
+    mortalidad_diaria = total_mortalidad_aves / dias_ciclo if dias_ciclo > 0 else 0
+    tabla_filtrada['Mortalidad_Acumulada'] = (tabla_filtrada['Dia'] * mortalidad_diaria).apply(np.floor)
+    tabla_filtrada['Saldo'] = aves_programadas - tabla_filtrada['Mortalidad_Acumulada']
 
-        # 4. MOSTRAR TABLA PRINCIPAL
-        closest_idx = (tabla_filtrada['Peso_Estimado'] - peso_objetivo).abs().idxmin()
-        tabla_filtrada = tabla_filtrada.loc[:closest_idx].copy()
-
-        # --- CÁLCULO DE SALDO DE AVES ---
-        dias_ciclo = tabla_filtrada.loc[closest_idx, 'Dia']
-        if dias_ciclo > 0 and aves_programadas > 0:
-            total_mortalidad_aves = aves_programadas * (mortalidad_objetivo / 100.0)
-            mortalidad_diaria = total_mortalidad_aves / dias_ciclo
-            tabla_filtrada['Mortalidad_Acumulada'] = (tabla_filtrada['Dia'] * mortalidad_diaria).apply(np.floor).astype(int)
-            tabla_filtrada['Saldo'] = (aves_programadas - tabla_filtrada['Mortalidad_Acumulada']).astype(int)
-        else:
-            tabla_filtrada['Mortalidad_Acumulada'] = 0
-            tabla_filtrada['Saldo'] = aves_programadas
-        
-        # --- CÁLCULO DE FECHA ---
-        tabla_filtrada['Fecha'] = tabla_filtrada['Dia'].apply(lambda dia: fecha_llegada + timedelta(days=dia - 1))
-
-        # --- CÁLCULO DE CONSUMO TOTAL (Kilos o Bultos) ---
-        if unidades_calculo == "Kilos":
-            total_col_name = "Kilos Totales"
-            daily_col_name = "Kilos Diarios"
-            tabla_filtrada[total_col_name] = ((tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 1000).round(0).astype(int)
-            format_total = "{:,.0f}"
-        else: # Bultos x 40 Kilos
-            total_col_name = "Bultos Totales"
-            daily_col_name = "Bultos Diarios"
-            tabla_filtrada[total_col_name] = ((tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 40000).apply(np.ceil).astype(int)
-            format_total = "{:,.0f}"
-
-        tabla_filtrada[daily_col_name] = tabla_filtrada[total_col_name].diff().fillna(tabla_filtrada[total_col_name]).astype(int)
-
-        def highlight_closest(row):
-            is_closest = row.name == closest_idx
-            return ['background-color: #ffcccc' if is_closest else '' for _ in row]
-        
-        format_dict = {
-            "Peso_Estimado": "{:,.0f}", 
-            "Cons_Acum_Ajustado": "{:,.0f}", 
-            "Peso": "{:,.0f}", 
-            "Dia": "{:,.0f}", 
-            "Cons_Acum": "{:,.0f}", 
-            "Saldo": "{:,.0f}", 
-            total_col_name: format_total,
-            daily_col_name: "{:,.0f}"
-        }
-
-        columnas_a_mostrar = [
-            'Dia', 'Fecha', 'Cons_Acum', 'Cons_Acum_Ajustado', 
-            'Peso', 'Peso_Estimado', 'Saldo', daily_col_name, total_col_name, 'Fase_Alimento'
-        ]
-        styler = tabla_filtrada[columnas_a_mostrar].style.apply(highlight_closest, axis=1).format(format_dict)
-        styler.set_table_styles([
-            {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#7D7D7D')]}
-        ], overwrite=False)
-        styler.hide(axis="index")
-        st.dataframe(styler)
-
-        # 5. MOSTRAR GRÁFICO
-        st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
-        if tabla_filtrada['Peso'].dtype == 'object':
-            tabla_filtrada['Peso'] = pd.to_numeric(tabla_filtrada['Peso'].str.replace(',', '.'), errors='coerce')
-        if 'Peso_Estimado' in tabla_filtrada.columns:
-            # Crear el gráfico con Matplotlib
-            fig, ax = plt.subplots()
-
-            # Graficar las líneas con colores personalizados
-            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
-            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
-
-            # --- Añadir marcador y leyenda para el peso objetivo ---
-            dia_objetivo = tabla_filtrada.loc[closest_idx, 'Dia']
-            peso_estimado_objetivo = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
-            consumo_objetivo = tabla_filtrada.loc[closest_idx, 'Cons_Acum_Ajustado']
-
-            # Añadir marcador
-            ax.plot(dia_objetivo, peso_estimado_objetivo, 'o', color='blue', markersize=8, label='Punto Objetivo')
-
-            # Crear texto para la leyenda
-            leyenda_texto = (
-                f"Edad Objetivo: {dia_objetivo:.0f} días\n"
-                f"Peso Estimado: {peso_estimado_objetivo:,.0f} gr\n"
-                f"Consumo Acumulado: {consumo_objetivo:,.0f} gr"
-            )
-
-            # Añadir texto en el gráfico
-            ax.text(0.05, 0.95, leyenda_texto, transform=ax.transAxes, fontsize=10,
-                    verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5))
-
-
-            # Añadir leyenda, títulos, etc.
-            ax.legend()
-            ax.set_xlabel("Día")
-            ax.set_ylabel("Peso (gramos)")
-            ax.grid(True)
-
-            # Añadir marca de agua
-            try:
-                from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-                logo_img = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
-                
-                # Coordenadas de datos para la esquina inferior derecha de la imagen
-                x_coord = tabla_filtrada['Dia'].max()
-                y_coord = 1 
-
-                imagebox = OffsetImage(logo_img, zoom=0.2, alpha=0.15)
-                
-                ab = AnnotationBbox(imagebox, (x_coord, y_coord),
-                                    frameon=False,
-                                    box_alignment=(1, 0)) # Alinear esquina inferior derecha
-                ax.add_artist(ab)
-            except (FileNotFoundError, ImportError):
-                pass # No hacer nada si no se encuentra el logo
-
-            # Mostrar el gráfico en Streamlit
-            st.pyplot(fig)
-
-        # 6. MOSTRAR RESUMEN DE PRESUPUESTO (AJUSTADO POR MORTALIDAD)
-        st.subheader("Resumen del Presupuesto de Alimento")
-        if aves_programadas > 0 and peso_objetivo > 0:
-            
-            if unidades_calculo == "Kilos":
-                unidad_str = "Kilos"
-                factor_conversion_a_kg = 1
-            else: # Bultos x 40 Kilos
-                unidad_str = "Bultos x 40kg"
-                factor_conversion_a_kg = 40
-
-            if daily_col_name in tabla_filtrada.columns:
-                consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col_name].sum()
-                
-                pre_iniciador_unidades = consumo_por_fase.get('Pre-iniciador', 0)
-                iniciador_unidades = consumo_por_fase.get('Iniciador', 0)
-                engorde_unidades = consumo_por_fase.get('Engorde', 0)
-                retiro_unidades = consumo_por_fase.get('Retiro', 0)
-                total_unidades = consumo_por_fase.sum()
-
-                # Convertir a Kilos para el cálculo de costos
-                pre_iniciador_kg = pre_iniciador_unidades * factor_conversion_a_kg
-                iniciador_kg = iniciador_unidades * factor_conversion_a_kg
-                engorde_kg = engorde_unidades * factor_conversion_a_kg
-                retiro_kg = retiro_unidades * factor_conversion_a_kg
-
-                # Calcular costos
-                costo_pre_iniciador = pre_iniciador_kg * val_pre_iniciador
-                costo_iniciador = iniciador_kg * val_iniciador
-                costo_engorde = engorde_kg * val_engorde
-                costo_retiro = retiro_kg * val_retiro
-                costo_total = costo_pre_iniciador + costo_iniciador + costo_engorde + costo_retiro
-
-                resumen_data = {
-                    "Fase de Alimento": ["Pre-iniciador", "Iniciador", "Engorde", "Retiro", "Total"],
-                    f"Consumo Total ({unidad_str})": [pre_iniciador_unidades, iniciador_unidades, engorde_unidades, retiro_unidades, total_unidades],
-                    "Valor del Alimento ($)": [costo_pre_iniciador, costo_iniciador, costo_engorde, costo_retiro, costo_total]
-                }
-                df_resumen_ajustado = pd.DataFrame(resumen_data)
-
-                styler_resumen = df_resumen_ajustado.style.format({
-                    f"Consumo Total ({unidad_str})": "{:,.0f}",
-                    "Valor del Alimento ($)": "${:,.2f}"
-                })
-                styler_resumen.set_table_styles([
-                    {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#7D7D7D')]}
-                ], overwrite=False)
-                styler_resumen.hide(axis="index")
-                st.dataframe(styler_resumen)
-            else:
-                st.warning("No se pudo calcular el resumen ajustado.")
-
-        else:
-            st.info("Ingrese un número de 'Aves Programadas' y un 'Peso Objetivo' mayores a 0 para calcular el presupuesto.")
-
-        # --- 7. ANÁLISIS ECONÓMICO ---
-        st.subheader("Análisis Económico del Presupuesto")
-
-        if 'consumo_por_fase' in locals() and 'closest_idx' in locals():
-            # Recolectar los datos necesarios
-            consumo_total_kg = (consumo_por_fase.sum()) * factor_conversion_a_kg
-            aves_producidas = tabla_filtrada.loc[closest_idx, 'Saldo']
-            peso_final_estimado_gr = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
-            kilos_totales_producidos = (aves_producidas * peso_final_estimado_gr) / 1000
-            valor_alimento_presupuesto = costo_total # Ya calculado en la sección 6
-
-            # Evitar división por cero
-            if kilos_totales_producidos > 0 and aves_producidas > 0 and consumo_total_kg > 0 and porcentaje_participacion_alimento > 0:
-                # Calcular KPIs
-                conversion_presupuesto = consumo_total_kg / kilos_totales_producidos
-                costo_alimento_por_ave = valor_alimento_presupuesto / aves_producidas
-                costo_alimento_por_kilo_producido = valor_alimento_presupuesto / kilos_totales_producidos
-                
-                total_costo_presupuesto = valor_alimento_presupuesto / (porcentaje_participacion_alimento / 100)
-                total_costo_por_ave = total_costo_presupuesto / aves_producidas
-                total_costo_por_kilo = total_costo_presupuesto / kilos_totales_producidos
-
-                consumo_por_ave_gr = (consumo_total_kg * 1000) / aves_producidas
-
-                # Crear DataFrame
-                analisis_data = {
-                    "Métrica": [
-                        "Consumo Total Kilos",
-                        "Aves Producidas",
-                        "Kilos Totales Producidos",
-                        "Consumo por ave en gramos",
-                        "Peso por ave en Gramos",
-                        "Conversión Presupuesto",
-                        "Valor del Alimento ($) Presupuesto",
-                        "Costo Alimento por Ave ($)",
-                        "Costo Alimento por Kilo Producido ($)",
-                        "Costo Total del Lote ($)",
-                        "Costo Total por Ave ($)",
-                        "Costo Total por Kilo Producido ($)"
-                    ],
-                    "Valor": [
-                        consumo_total_kg,
-                        aves_producidas,
-                        kilos_totales_producidos,
-                        consumo_por_ave_gr,
-                        peso_final_estimado_gr,
-                        conversion_presupuesto,
-                        valor_alimento_presupuesto,
-                        costo_alimento_por_ave,
-                        costo_alimento_por_kilo_producido,
-                        total_costo_presupuesto,
-                        total_costo_por_ave,
-                        total_costo_por_kilo
-                    ]
-                }
-                df_analisis = pd.DataFrame(analisis_data)
-
-                # Aplicar Estilo
-                # Se convierte la columna 'Métrica' en el índice del DataFrame para poder aplicar formatos
-                # a filas específicas de la columna 'Valor' de manera condicional.
-                # Esto mantiene los datos numéricos como números y solo aplica formato para la visualización.
-                df_analisis = df_analisis.set_index("Métrica")
-                styler_analisis = df_analisis.style
-
-                # Definir las métricas para cada formato
-                dollar_metrics = [
-                    "Valor del Alimento ($) Presupuesto",
-                    "Costo Alimento por Ave ($)",
-                    "Costo Alimento por Kilo Producido ($)",
-                    "Costo Total del Lote ($)",
-                    "Costo Total por Ave ($)",
-                    "Costo Total por Kilo Producido ($)"
-                ]
-                conversion_metric = ["Conversión Presupuesto"]
-                
-                all_metrics = df_analisis.index.tolist()
-                integer_metrics = [m for m in all_metrics if m not in dollar_metrics and m not in conversion_metric]
-
-                # Aplicar formatos usando pd.IndexSlice para seleccionar filas por su etiqueta (Métrica)
-                styler_analisis.format("${:,.2f}", subset=pd.IndexSlice[dollar_metrics, ["Valor"]])
-                styler_analisis.format("{:,.3f}", subset=pd.IndexSlice[conversion_metric, ["Valor"]])
-                styler_analisis.format("{:,.0f}", subset=pd.IndexSlice[integer_metrics, ["Valor"]])
-
-                styler_analisis.set_table_styles([
-                    {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white')}},
-                    {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5')}},
-                    {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#D3D3D3'))},
-                    {'selector': 'td, th', 'props': [('border', '1px solid #ccc')]}
-                ])
-                # No se oculta el índice ('Métrica') porque ahora contiene información valiosa.
-                st.dataframe(styler_analisis, use_container_width=True)
-
-                # --- 8. GRÁFICO DE PARTICIPACIÓN DE COSTOS ---
-                st.subheader("Participación de Costos")
-
-                # Datos para el gráfico
-                otros_costos = total_costo_presupuesto - valor_alimento_presupuesto
-                sizes = [valor_alimento_presupuesto, otros_costos]
-                costo_otros_por_kilo_producido = total_costo_por_kilo - costo_alimento_por_kilo_producido
-                labels = [
-                    f"Alimento: ${costo_alimento_por_kilo_producido:,.2f} / Kg Producido",
-                    f"Otros Costos: ${costo_otros_por_kilo_producido:,.2f} / Kg Producido"
-                ]
-                colors = ['darkred', 'lightcoral']
-                explode = (0.1, 0)
-
-                fig_pie, ax_pie = plt.subplots()
-                ax_pie.pie(sizes, explode=explode, labels=None, colors=colors, autopct='%1.1f%%',
-                           shadow=True, startangle=90, pctdistance=0.85)
-
-                # Dibujar un círculo en el centro para hacer un 'donut chart'
-                centre_circle = plt.Circle((0,0),0.70,fc='white')
-                fig_pie.gca().add_artist(centre_circle)
-
-                ax_pie.axis('equal')
-                ax_pie.legend(labels, loc="center", fontsize='small')
-                ax_pie.text(0, -0.2, f"Total: ${total_costo_por_kilo:,.2f}/Kg",
-                           horizontalalignment='center', verticalalignment='center',
-                           fontsize=12, color='black')
-                
-                st.pyplot(fig_pie)
-                
-            else:
-                st.warning("No se puede generar el análisis económico porque los valores de producción, consumo o participación son cero.")
+    # Calcular fecha y consumo total (Kilos o Bultos)
+    tabla_filtrada['Fecha'] = tabla_filtrada['Dia'].apply(lambda d: fecha_llegada + timedelta(days=d - 1))
+    
+    if unidades_calculo == "Kilos":
+        total_col, daily_col = "Kilos Totales", "Kilos Diarios"
+        tabla_filtrada[total_col] = (tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 1000
     else:
-        st.warning("No se encontraron datos de referencia para la combinación de RAZA y SEXO seleccionada.")
-else:
-    st.error("No se pueden mostrar datos de referencia porque el DataFrame 'df_referencia' no se cargó correctamente.")
+        total_col, daily_col = "Bultos Totales", "Bultos Diarios"
+        tabla_filtrada[total_col] = np.ceil((tabla_filtrada['Cons_Acum_Ajustado'] * tabla_filtrada['Saldo']) / 40000)
+    
+    tabla_filtrada[daily_col] = tabla_filtrada[total_col].diff().fillna(tabla_filtrada[total_col])
 
-st.markdown("---")
+    # 3. VISUALIZACIONES
+    # Tabla principal
+    st.subheader(f"Tabla de Proyección para {aves_programadas} aves ({raza_seleccionada} - {sexo_seleccionado})")
+    columnas_a_mostrar = ['Dia', 'Fecha', 'Saldo', 'Cons_Acum', 'Cons_Acum_Ajustado', 'Peso', 'Peso_Estimado', daily_col, total_col, 'Fase_Alimento']
+    format_dict = {col: "{:,.0f}" for col in columnas_a_mostrar if col not in ['Fecha', 'Fase_Alimento']}
+    
+    styler = tabla_filtrada[columnas_a_mostrar].style.format(format_dict)
+    styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx else '' for _ in row], axis=1)
+    st.dataframe(styler.hide(axis="index"), use_container_width=True)
+    
+    # Gráfico de crecimiento
+    st.subheader("Gráfico de Crecimiento: Peso de Referencia vs. Peso Estimado")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
+    ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
+    
+    dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
+    peso_obj = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
+    cons_obj = tabla_filtrada.loc[closest_idx, 'Cons_Acum_Ajustado']
+    
+    ax.plot(dia_obj, peso_obj, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj:,.0f} gr")
+    leyenda_texto = f"Edad: {dia_obj:.0f} días\nPeso: {peso_obj:,.0f} gr\nConsumo: {cons_obj:,.0f} gr"
+    ax.text(0.05, 0.95, leyenda_texto, transform=ax.transAxes, verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5))
+    
+    ax.legend()
+    ax.set_xlabel("Día del Ciclo")
+    ax.set_ylabel("Peso (gramos)")
+    ax.grid(True, linestyle='--', alpha=0.6)
+    st.pyplot(fig)
 
-st.markdown("""
-<div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
-Nota de Responsabilidad: Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
-<br><br>
-Desarrollado por la Dirección Técnica de Albateq dtecnico@albateq.com
-</div>
-""", unsafe_allow_html=True)
+    # --- 4. ANÁLISIS ECONÓMICO Y RESUMEN (MEJORA: Flujo unificado) ---
+    st.subheader("Resumen del Presupuesto de Alimento")
+    factor_kg = 1 if unidades_calculo == "Kilos" else 40
+    consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col].sum()
+    
+    # Consumo y costo por fase
+    fases = ['Pre-iniciador', 'Iniciador', 'Engorde', 'Retiro']
+    unidades = [consumo_por_fase.get(f, 0) for f in fases]
+    costos_kg = [val_pre_iniciador, val_iniciador, val_engorde, val_retiro]
+    costos = [(u * factor_kg) * c for u, c in zip(unidades, costos_kg)]
+
+    # DataFrame de Resumen
+    df_resumen = pd.DataFrame({
+        "Fase de Alimento": fases + ["Total"],
+        f"Consumo ({unidades_calculo})": unidades + [sum(unidades)],
+        "Valor del Alimento ($)": costos + [sum(costos)]
+    })
+    styler_resumen = df_resumen.style.format({f"Consumo ({unidades_calculo})": "{:,.0f}", "Valor del Alimento ($)": "${:,.2f}"})
+    st.dataframe(styler_resumen.hide(axis="index"), use_container_width=True)
+
+    # KPIs económicos
+    st.subheader("Indicadores Clave de Desempeño (KPIs)")
+    costo_total_alimento = sum(costos)
+    aves_producidas = tabla_filtrada.loc[closest_idx, 'Saldo']
+    kilos_totales_producidos = (aves_producidas * peso_obj) / 1000
+    consumo_total_kg = sum(unidades) * factor_kg
+    
+    if kilos_totales_producidos > 0 and porcentaje_participacion_alimento > 0:
+        costo_total_lote = costo_total_alimento / (porcentaje_participacion_alimento / 100)
+        
+        kpi_data = {
+            "Métrica": [
+                "Aves Producidas", "Kilos Totales Producidos", "Conversión Alimenticia",
+                "Costo Alimento / Ave ($)", "Costo Alimento / Kilo ($)",
+                "Costo Total / Ave ($)", "Costo Total / Kilo ($)",
+                "Costo Total del Lote ($)"
+            ],
+            "Valor": [
+                aves_producidas, kilos_totales_producidos, consumo_total_kg / kilos_totales_producidos,
+                costo_total_alimento / aves_producidas, costo_total_alimento / kilos_totales_producidos,
+                costo_total_lote / aves_producidas, costo_total_lote / kilos_totales_producidos,
+                costo_total_lote
+            ]
+        }
+        df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
+        
+        # MEJORA: Formato robusto usando una función
+        def format_kpi(val):
+            if val.name == "Conversión Alimenticia": return f"{val:,.3f}"
+            if "($)" in val.name: return f"${val:,.2f}"
+            return f"{val:,.0f}"
+
+        styler_kpi = df_kpi.style.format({"Valor": format_kpi})
+        st.dataframe(styler_kpi, use_container_width=True)
+
+        # Gráfico de participación de costos
+        st.subheader("Participación de Costos por Kilo Producido")
+        costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
+        costo_total_kilo = costo_total_lote / kilos_totales_producidos
+        
+        fig_pie, ax_pie = plt.subplots()
+        sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
+        labels = [f"Alimento\n${s:,.2f}" for s in sizes]
+        ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
+        ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
+        st.pyplot(fig_pie)
+    else:
+        st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación del alimento son cero.")
+
+# MEJORA: Este bloque capturará cualquier error no previsto y mostrará un mensaje útil.
+except Exception as e:
+    st.error("Ocurrió un error inesperado durante el procesamiento de los datos.")
+    st.exception(e)  # Esto es muy útil para depurar en la terminal
+
+finally:
+    # Este bloque se ejecuta siempre, asegurando que la nota de responsabilidad aparezca.
+    st.markdown("---")
+    st.markdown("""
+    <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
+    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
+    </div>
+    """, unsafe_allow_html=True)
