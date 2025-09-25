@@ -300,13 +300,16 @@ try:
         }
         df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
         
-        # MEJORA: Formato robusto usando una función
-        def format_kpi(val):
-            if val.name == "Conversión Alimenticia": return f"{val:,.3f}"
-            if "($)" in val.name: return f"${val:,.2f}"
-            return f"{val:,.0f}"
-
-        styler_kpi = df_kpi.style.format({"Valor": format_kpi})
+        # MEJORA: Formato robusto iterando sobre las métricas
+        styler_kpi = df_kpi.style
+        for metric in df_kpi.index:
+            if metric == "Conversión Alimenticia":
+                fmt = "{:,.3f}"
+            elif "($)" in metric:
+                fmt = "${:,.2f}"
+            else:
+                fmt = "{:,.0f}"
+            styler_kpi = styler_kpi.format({"Valor": fmt}, subset=pd.IndexSlice[metric, :])
         st.dataframe(styler_kpi, use_container_width=True)
 
         # Gráfico de participación de costos
