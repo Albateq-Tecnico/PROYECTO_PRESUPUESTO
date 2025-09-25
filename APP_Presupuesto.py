@@ -374,6 +374,9 @@ finally:
     st.markdown("---")
     st.markdown("""
     <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
-    <b>Nota de Responsabilidad:</b> Los resultados presentados por esta aplicación son estimaciones basadas en los datos de entrada y modelos estándar. Deben ser utilizados únicamente como una guía de apoyo y no reemplazan el juicio profesional, la experiencia en granja ni la consulta con personal técnico calificado. El usuario asume toda la responsabilidad por las decisiones tomadas basadas en la información aquí presentada.
+    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
+    </div>
+    <div style="text-align: center; margin-top: 15px;">
+    Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
     </div>
     """, unsafe_allow_html=True)
