@@ -298,6 +298,26 @@ if df_referencia is not None:
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
 
+            # --- Añadir marcador y leyenda para el peso objetivo ---
+            dia_objetivo = tabla_filtrada.loc[closest_idx, 'Dia']
+            peso_estimado_objetivo = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
+            consumo_objetivo = tabla_filtrada.loc[closest_idx, 'Cons_Acum_Ajustado']
+
+            # Añadir marcador
+            ax.plot(dia_objetivo, peso_estimado_objetivo, 'o', color='blue', markersize=8, label='Punto Objetivo')
+
+            # Crear texto para la leyenda
+            leyenda_texto = (
+                f"Edad Objetivo: {dia_objetivo:.0f} días\n"
+                f"Peso Estimado: {peso_estimado_objetivo:,.0f} gr\n"
+                f"Consumo Acumulado: {consumo_objetivo:,.0f} gr"
+            )
+
+            # Añadir texto en el gráfico
+            ax.text(0.05, 0.95, leyenda_texto, transform=ax.transAxes, fontsize=10,
+                    verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5))
+
+
             # Añadir leyenda, títulos, etc.
             ax.legend()
             ax.set_xlabel("Día")
@@ -332,7 +352,7 @@ if df_referencia is not None:
             if unidades_calculo == "Kilos":
                 unidad_str = "Kilos"
                 factor_conversion_a_kg = 1
-            else:
+            else: # Bultos x 40 Kilos
                 unidad_str = "Bultos x 40kg"
                 factor_conversion_a_kg = 40
 
@@ -421,28 +441,39 @@ if df_referencia is not None:
                         "Costo Total por Kilo Producido ($)"
                     ],
                     "Valor": [
-                        "{_2f}".format(consumo_total_kg),
-                        "{_0f}".format(aves_producidas),
-                        "{_2f}".format(kilos_totales_producidos),
-                        "{_0f}".format(consumo_por_ave_gr),
-                        "{_0f}".format(peso_final_estimado_gr),
-                        "{_3f}".format(conversion_presupuesto),
-                        "${_2f}".format(valor_alimento_presupuesto),
-                        "${_2f}".format(costo_alimento_por_ave),
-                        "${_2f}".format(costo_alimento_por_kilo_producido),
-                        "${_2f}".format(total_costo_presupuesto),
-                        "${_2f}".format(total_costo_por_ave),
-                        "${_2f}".format(total_costo_por_kilo)
+                        consumo_total_kg,
+                        aves_producidas,
+                        kilos_totales_producidos,
+                        consumo_por_ave_gr,
+                        peso_final_estimado_gr,
+                        conversion_presupuesto,
+                        valor_alimento_presupuesto,
+                        costo_alimento_por_ave,
+                        costo_alimento_por_kilo_producido,
+                        total_costo_presupuesto,
+                        total_costo_por_ave,
+                        total_costo_por_kilo
                     ]
                 }
                 df_analisis = pd.DataFrame(analisis_data)
 
                 # Aplicar Estilo
-                styler_analisis = df_analisis.style.set_properties(**{'text-align': 'right'}, subset=['Valor'])
+                styler_analisis = df_analisis.style.format({
+                    "Valor": lambda x: f"${x:,.2f}" if x.name in [
+                        "Valor del Alimento ($) Presupuesto",
+                        "Costo Alimento por Ave ($)",
+                        "Costo Alimento por Kilo Producido ($)",
+                        "Costo Total del Lote ($)",
+                        "Costo Total por Ave ($)",
+                        "Costo Total por Kilo Producido ($)"
+                    ] else (
+                        f"{x:,.3f}" if x.name == "Conversión Presupuesto" else f"{x:,.0f}"
+                    )
+                })
                 styler_analisis.set_table_styles([
-                    {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white')]},
-                    {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5')]},
-                    {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#D3D3D3')]},
+                    {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white'))},
+                    {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5'))},
+                    {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#D3D3D3'))},
                     {'selector': 'td, th', 'props': [('border', '1px solid #ccc')]}
                 ])
                 styler_analisis.hide(axis="index")
