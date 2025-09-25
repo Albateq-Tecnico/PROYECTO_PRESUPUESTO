@@ -317,7 +317,7 @@ try:
         costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         
-        fig_pie, ax_pie = plt.subplots()
+        fig_pie, ax_pie = plt.subplots(figsize=(4, 3))
         sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
         labels = [f"Alimento\n${s:,.2f}" for s in sizes]
         ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
