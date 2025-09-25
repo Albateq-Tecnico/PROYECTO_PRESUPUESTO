@@ -68,6 +68,19 @@ def calcular_peso_estimado(data, coeffs_df, raza, sexo):
     st.warning(f"No se encontraron coeficientes de peso para {raza} - {sexo}. El peso estimado será 0.")
     return pd.Series(0, index=data.index)
 
+def style_kpi_df(df):
+    """Aplica formato condicional a un DataFrame de KPIs."""
+    styler = df.style
+    for metric in df.index:
+        if metric == "Conversión Alimenticia":
+            fmt = "{:,.3f}"
+        elif "($)" in metric:
+            fmt = "${:,.2f}"
+        else:
+            fmt = "{:,.0f}"
+        styler = styler.format({"Valor": fmt}, subset=pd.IndexSlice[metric, :])
+    return styler
+
 # --- CARGA DE DATOS ---
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
@@ -284,33 +297,39 @@ try:
     if kilos_totales_producidos > 0 and porcentaje_participacion_alimento > 0:
         costo_total_lote = costo_total_alimento / (porcentaje_participacion_alimento / 100)
         
+        # Crear el DataFrame completo de KPIs
         kpi_data = {
             "Métrica": [
-                "Aves Producidas", "Kilos Totales Producidos", "Conversión Alimenticia",
-                "Costo Alimento / Ave ($)", "Costo Alimento / Kilo ($)",
-                "Costo Total / Ave ($)", "Costo Total / Kilo ($)",
-                "Costo Total del Lote ($)"
+                "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
+                "Conversión Alimenticia", "Costo Alimento / Ave ($)", "Costo Alimento / Kilo ($)",
+                "Costo Total / Ave ($)", "Costo Total / Kilo ($)", "Costo Total del Lote ($)"
             ],
             "Valor": [
-                aves_producidas, kilos_totales_producidos, consumo_total_kg / kilos_totales_producidos,
-                costo_total_alimento / aves_producidas, costo_total_alimento / kilos_totales_producidos,
-                costo_total_lote / aves_producidas, costo_total_lote / kilos_totales_producidos,
+                aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj,
+                (consumo_total_kg / kilos_totales_producidos) if kilos_totales_producidos > 0 else 0,
+                (costo_total_alimento / aves_producidas) if aves_producidas > 0 else 0,
+                (costo_total_alimento / kilos_totales_producidos) if kilos_totales_producidos > 0 else 0,
+                (costo_total_lote / aves_producidas) if aves_producidas > 0 else 0,
+                (costo_total_lote / kilos_totales_producidos) if kilos_totales_producidos > 0 else 0,
                 costo_total_lote
             ]
         }
         df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
-        
-        # MEJORA: Formato robusto iterando sobre las métricas
-        styler_kpi = df_kpi.style
-        for metric in df_kpi.index:
-            if metric == "Conversión Alimenticia":
-                fmt = "{:,.3f}"
-            elif "($)" in metric:
-                fmt = "${:,.2f}"
-            else:
-                fmt = "{:,.0f}"
-            styler_kpi = styler_kpi.format({"Valor": fmt}, subset=pd.IndexSlice[metric, :])
-        st.dataframe(styler_kpi, use_container_width=True)
+
+        # Dividir KPIs en dos columnas para mejor visualización
+        num_kpis = len(df_kpi)
+        mid_point = (num_kpis + 1) // 2
+        df_kpi1 = df_kpi.iloc[:mid_point]
+        df_kpi2 = df_kpi.iloc[mid_point:]
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.dataframe(style_kpi_df(df_kpi1), use_container_width=True)
+
+        with col2:
+            if not df_kpi2.empty:
+                st.dataframe(style_kpi_df(df_kpi2), use_container_width=True)
 
         # Gráfico de participación de costos
         st.subheader("Participación de Costos por Kilo Producido")
