@@ -458,25 +458,38 @@ if df_referencia is not None:
                 df_analisis = pd.DataFrame(analisis_data)
 
                 # Aplicar Estilo
-                styler_analisis = df_analisis.style.format({
-                    "Valor": lambda x: f"${x:,.2f}" if x.name in [
-                        "Valor del Alimento ($) Presupuesto",
-                        "Costo Alimento por Ave ($)",
-                        "Costo Alimento por Kilo Producido ($)",
-                        "Costo Total del Lote ($)",
-                        "Costo Total por Ave ($)",
-                        "Costo Total por Kilo Producido ($)"
-                    ] else (
-                        f"{x:,.3f}" if x.name == "Conversión Presupuesto" else f"{x:,.0f}"
-                    )
-                })
+                # Se convierte la columna 'Métrica' en el índice del DataFrame para poder aplicar formatos
+                # a filas específicas de la columna 'Valor' de manera condicional.
+                # Esto mantiene los datos numéricos como números y solo aplica formato para la visualización.
+                df_analisis = df_analisis.set_index("Métrica")
+                styler_analisis = df_analisis.style
+
+                # Definir las métricas para cada formato
+                dollar_metrics = [
+                    "Valor del Alimento ($) Presupuesto",
+                    "Costo Alimento por Ave ($)",
+                    "Costo Alimento por Kilo Producido ($)",
+                    "Costo Total del Lote ($)",
+                    "Costo Total por Ave ($)",
+                    "Costo Total por Kilo Producido ($)"
+                ]
+                conversion_metric = ["Conversión Presupuesto"]
+                
+                all_metrics = df_analisis.index.tolist()
+                integer_metrics = [m for m in all_metrics if m not in dollar_metrics and m not in conversion_metric]
+
+                # Aplicar formatos usando pd.IndexSlice para seleccionar filas por su etiqueta (Métrica)
+                styler_analisis.format("${:,.2f}", subset=pd.IndexSlice[dollar_metrics, ["Valor"]])
+                styler_analisis.format("{:,.3f}", subset=pd.IndexSlice[conversion_metric, ["Valor"]])
+                styler_analisis.format("{:,.0f}", subset=pd.IndexSlice[integer_metrics, ["Valor"]])
+
                 styler_analisis.set_table_styles([
-                    {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white'))},
-                    {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5'))},
+                    {'selector': 'thead tr', 'props': [('background-color', '#4A4A4A'), ('color', 'white')}},
+                    {'selector': 'tr:nth-child(odd) td', 'props': [('background-color', '#F5F5F5')}},
                     {'selector': 'tr:nth-child(even) td', 'props': [('background-color', '#D3D3D3'))},
                     {'selector': 'td, th', 'props': [('border', '1px solid #ccc')]}
                 ])
-                styler_analisis.hide(axis="index")
+                # No se oculta el índice ('Métrica') porque ahora contiene información valiosa.
                 st.dataframe(styler_analisis, use_container_width=True)
 
                 # --- 8. GRÁFICO DE PARTICIPACIÓN DE COSTOS ---
