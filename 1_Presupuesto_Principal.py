@@ -65,9 +65,9 @@ st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 st.sidebar.subheader("Unidades y Costos")
 st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo", ["Kilos", "Bultos x 40 Kilos"])
 st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
-st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
-st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
-st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
+st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 2200.0, 5200.0, format="%.2f")
+st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 2200.0, 5200.0, format="%.2f")
+st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 2200.0, 5200.0, format="%.2f")
 st.session_state.porcentaje_participacion_alimento = st.sidebar.number_input("Participación Alimento en Costo Total (%)", 0.0, 100.0, 65.0, 0.01, format="%.2f")
 
 # =============================================================================
@@ -100,7 +100,6 @@ try:
     
     tabla_filtrada['Cons_Acum'] = clean_numeric_column(tabla_filtrada['Cons_Acum'])
     tabla_filtrada['Peso'] = clean_numeric_column(tabla_filtrada['Peso'])
-
     factor_ajuste = 1 - (st.session_state.restriccion_programada / 100.0)
     tabla_filtrada['Cons_Acum_Ajustado'] = tabla_filtrada['Cons_Acum'] * factor_ajuste
 
@@ -127,7 +126,7 @@ try:
     choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
     tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
-    # 2. CÁLCULOS DE MORTALIDAD Y CONSUMO
+    # 2. CÁLCULOS DE MORTALIDAD Y CONSUMO (ESCENARIO BASE: LINEAL)
     dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
     total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
     mortalidad_diaria_prom = total_mortalidad_aves / dia_obj if dia_obj > 0 else 0
@@ -135,11 +134,8 @@ try:
     tabla_filtrada['Saldo'] = st.session_state.aves_programadas - tabla_filtrada['Mortalidad_Acumulada']
     tabla_filtrada['Fecha'] = tabla_filtrada['Dia'].apply(lambda d: st.session_state.fecha_llegada + timedelta(days=d - 1))
     
-    # --- CORRECCIÓN FUNDAMENTAL EN EL CÁLCULO DE CONSUMO DIARIO ---
-    # Primero, calculamos el consumo diario por ave
+    # --- LÓGICA MATEMÁTICA CORREGIDA PARA EL CONSUMO DIARIO ---
     tabla_filtrada['Cons_Diario_Ave_gr'] = tabla_filtrada['Cons_Acum_Ajustado'].diff().fillna(tabla_filtrada['Cons_Acum_Ajustado'].iloc[0])
-
-    # Luego, el consumo diario del LOTE es el consumo por ave * el saldo de aves de ese día
     if st.session_state.unidades_calculo == "Kilos":
         daily_col = "Kilos Diarios"
         total_col = "Kilos Totales"
@@ -148,9 +144,7 @@ try:
         daily_col = "Bultos Diarios"
         total_col = "Bultos Totales"
         tabla_filtrada[daily_col] = np.ceil((tabla_filtrada['Cons_Diario_Ave_gr'] * tabla_filtrada['Saldo']) / 40000)
-    
     tabla_filtrada[total_col] = tabla_filtrada[daily_col].cumsum()
-
 
     # 3. VISUALIZACIONES
     st.subheader(f"Tabla de Proyección para {st.session_state.aves_programadas} aves ({st.session_state.raza_seleccionada} - {st.session_state.sexo_seleccionado})")
@@ -178,6 +172,7 @@ try:
     styler_resumen = df_resumen.style.format({f"Consumo ({st.session_state.unidades_calculo})": "{:,.0f}", "Valor del Alimento ($)": "${:,.2f}"})
     st.dataframe(styler_resumen.hide(axis="index"), use_container_width=True)
 
+    # --- INICIO DE LA SECCIÓN RESTAURADA ---
     st.subheader("Indicadores Clave de Desempeño (KPIs)")
     costo_total_alimento = sum(costos)
     aves_producidas = tabla_filtrada['Saldo'].iloc[-1]
@@ -206,13 +201,63 @@ try:
         kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
         kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio:,.2f}", help="Costo del alimento consumido por las aves que murieron.")
 
-        # ... (El resto del código para los KPIs detallados y los gráficos permanece igual)
+        st.markdown("---")
+        st.subheader("Análisis de Costos Detallado")
+        kpi_data = {
+            "Métrica": [
+                "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
+                "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)",
+                "Costo Total Alimento ($)", "Costo por Mortalidad ($)", "Costo Total de Producción ($)"
+            ], "Valor": [
+                aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj_final,
+                costo_total_alimento / kilos_totales_producidos, costo_total_kilo,
+                costo_total_alimento, costo_desperdicio, costo_total_lote
+            ]
+        }
+        df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.dataframe(style_kpi_df(df_kpi.iloc[:5]), use_container_width=True)
+        with col2:
+            st.dataframe(style_kpi_df(df_kpi.iloc[5:]), use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Gráficos de Resultados")
+        col1_graf, col2_graf = st.columns(2)
+        with col1_graf:
+            fig, ax = plt.subplots()
+            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
+            ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
+            ax.plot(dia_obj, peso_obj_final, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj_final:,.0f} gr")
+            ax.legend()
+            ax.set_xlabel("Día del Ciclo")
+            ax.set_ylabel("Peso (gramos)")
+            ax.set_title("Gráfico de Crecimiento")
+            ax.grid(True, linestyle='--', alpha=0.6)
+            st.pyplot(fig)
+        with col2_graf:
+            costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
+            fig_pie, ax_pie = plt.subplots()
+            sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
+            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Otros Costos\n${sizes[1]:,.2f}"]
+            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
+            ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
+            st.pyplot(fig_pie)
     else:
         st.warning("No se pueden calcular KPIs: kilos producidos o participación de alimento son cero.")
+    # --- FIN DE LA SECCIÓN RESTAURADA ---
 
 except Exception as e:
     st.error("Ocurrió un error inesperado durante el procesamiento.")
     st.exception(e)
 finally:
     st.markdown("---")
-    st.markdown("""...""", unsafe_allow_html=True) # Tu nota de responsabilidad
+    st.markdown("""
+    <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
+    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
+    </div>
+    <div style="text-align: center; margin-top: 15px;">
+    Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
+    </div>
+    """, unsafe_allow_html=True)
