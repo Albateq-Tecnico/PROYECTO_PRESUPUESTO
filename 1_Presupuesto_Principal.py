@@ -29,7 +29,6 @@ try:
 except (FileNotFoundError, ImportError):
     st.sidebar.warning("Logo no encontrado.")
 
-# --- Guardar todas las entradas en st.session_state para compartirlas con otras páginas ---
 st.sidebar.subheader("Datos del Lote")
 st.session_state.aves_programadas = st.sidebar.number_input("# Aves Programadas", 0, value=10000, step=1000)
 st.session_state.fecha_llegada = st.sidebar.date_input("Fecha de llegada", date.today())
@@ -63,16 +62,13 @@ st.session_state.iniciador = st.sidebar.number_input("Iniciador (gr/ave)", 1, 20
 st.session_state.retiro = st.sidebar.number_input("Retiro (gr/ave)", 0, 2000, 500, 10)
 st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 
-st.sidebar.subheader("Unidades y Costos")
-st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo", ["Kilos", "Bultos x 40 Kilos"])
+st.sidebar.subheader("Estructura de Costos Directos")
+st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo Alimento", ["Kilos", "Bultos x 40 Kilos"])
 st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
 st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
 st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
 st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
-
-st.sidebar.subheader("Estructura de Costos (%)")
-st.session_state.porcentaje_participacion_alimento = st.sidebar.number_input("Participación del Alimento (%)", 0.0, 100.0, 65.0, 0.01, format="%.2f")
-st.session_state.porcentaje_participacion_pollito = st.sidebar.number_input("Participación del Pollito (%)", 0.0, 100.0, 12.0, 0.01, format="%.2f")
+st.session_state.otros_costos_ave = st.sidebar.number_input("Otros Costos Estimados ($/ave)", 0.0, 10000.0, 1500.0, format="%.2f", help="Incluye mano de obra, sanidad, energía, depreciación, etc.")
 
 # --- BOTÓN PARA INICIAR EL CÁLCULO ---
 st.sidebar.markdown("---")
@@ -85,7 +81,6 @@ if st.sidebar.button("Generar Presupuesto", type="primary", use_container_width=
 
 st.title("🐔 Presupuesto Avícola")
 
-# --- LÓGICA DE VISUALIZACIÓN CONDICIONAL ---
 if 'start_calculation' not in st.session_state or not st.session_state.start_calculation:
     st.info("👈 Para empezar, ajusta los parámetros en el Panel de Control y luego haz clic en 'Generar Presupuesto'.")
 else:
@@ -180,18 +175,18 @@ else:
             st.dataframe(styler_resumen.hide(axis="index"), use_container_width=True)
 
             st.subheader("Indicadores Clave de Desempeño (KPIs)")
+            
             costo_total_alimento = sum(costos)
+            costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
+            costo_total_otros = st.session_state.aves_programadas * st.session_state.otros_costos_ave
+            costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
+
             aves_producidas = tabla_filtrada['Saldo'].iloc[-1]
             peso_obj_final = tabla_filtrada['Peso_Estimado'].iloc[-1]
             kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
             consumo_total_kg = tabla_filtrada[daily_col].sum() * factor_kg
             
-            costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
-            costo_base_conocido = costo_total_alimento + costo_total_pollitos
-            participacion_base = st.session_state.porcentaje_participacion_alimento + st.session_state.porcentaje_participacion_pollito
-            
-            if kilos_totales_producidos > 0 and participacion_base > 0:
-                costo_total_lote = costo_base_conocido / (participacion_base / 100)
+            if kilos_totales_producidos > 0:
                 costo_total_kilo = costo_total_lote / kilos_totales_producidos
                 conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
 
@@ -220,21 +215,21 @@ else:
                 kpi_data = {
                     "Métrica": [
                         "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
-                        "Costo Alimento / Kilo ($)", "Costo Pollitos / Kilo ($)", "Costo Total / Kilo ($)",
-                        "Costo Total Alimento ($)", "Costo Total Pollitos ($)", "Costo por Mortalidad ($)", "Costo Total de Producción ($)"
+                        "Costo Alimento / Kilo ($)", "Costo Pollitos / Kilo ($)", "Costo Otros / Kilo ($)", "Costo Total / Kilo ($)",
+                        "Costo Total Alimento ($)", "Costo Total Pollitos ($)", "Costo Total Otros ($)", "Costo por Mortalidad ($)", "Costo Total de Producción ($)"
                     ], "Valor": [
                         aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj_final,
-                        costo_total_alimento / kilos_totales_producidos, costo_total_pollitos / kilos_totales_producidos, costo_total_kilo,
-                        costo_total_alimento, costo_total_pollitos, costo_desperdicio_total, costo_total_lote
+                        costo_total_alimento / kilos_totales_producidos, costo_total_pollitos / kilos_totales_producidos, costo_total_otros / kilos_totales_producidos, costo_total_kilo,
+                        costo_total_alimento, costo_total_pollitos, costo_total_otros, costo_desperdicio_total, costo_total_lote
                     ]
                 }
                 df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.dataframe(style_kpi_df(df_kpi.iloc[:6]), use_container_width=True)
+                    st.dataframe(style_kpi_df(df_kpi.iloc[:7]), use_container_width=True)
                 with col2:
-                    st.dataframe(style_kpi_df(df_kpi.iloc[6:]), use_container_width=True)
+                    st.dataframe(style_kpi_df(df_kpi.iloc[7:]), use_container_width=True)
 
                 st.markdown("---")
                 st.subheader("Gráficos de Resultados")
@@ -263,7 +258,7 @@ else:
                 with col2_graf:
                     costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
                     costo_pollitos_kilo = costo_total_pollitos / kilos_totales_producidos
-                    otros_costos_kilo = costo_total_kilo - costo_alimento_kilo - costo_pollitos_kilo
+                    otros_costos_kilo = costo_total_otros / kilos_totales_producidos
                     
                     sizes = [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo]
                     labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
@@ -274,7 +269,7 @@ else:
                     ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
                     st.pyplot(fig_pie)
             else:
-                st.warning("No se pueden calcular KPIs: kilos producidos o participación de costos son cero.")
+                st.warning("No se pueden calcular KPIs: los kilos producidos son cero.")
 
         except Exception as e:
             st.error("Ocurrió un error inesperado durante el procesamiento.")
@@ -283,9 +278,7 @@ else:
             st.markdown("---")
             st.markdown("""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <b>Nota de Responsabilidad:</b> Nota de Responsabilidad: Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
-
-Desarrollado por la Dirección Técnica de Albateq dtecnico@albateq.com.
+            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
             </div>
             <div style="text-align: center; margin-top: 15px;">
             Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
