@@ -1,4 +1,4 @@
-# Contenido FINAL para: utils.py
+# Contenido COMPLETO y ACTUALIZADO para: utils.py
 
 import streamlit as st
 import pandas as pd
@@ -6,6 +6,7 @@ import numpy as np
 
 @st.cache_data
 def load_data(file_path):
+    """Carga datos desde un archivo CSV de forma robusta."""
     try:
         return pd.read_csv(file_path)
     except FileNotFoundError:
@@ -16,11 +17,13 @@ def load_data(file_path):
         return None
 
 def clean_numeric_column(series):
+    """Convierte una columna a tipo numérico, manejando comas como decimales."""
     if series.dtype == 'object':
         return pd.to_numeric(series.str.replace(',', '.', regex=False), errors='coerce')
     return series
 
 def calcular_peso_estimado(data, coeffs_df, raza, sexo):
+    """Calcula el peso estimado usando coeficientes de regresión polinomial."""
     if coeffs_df is None: return pd.Series(0, index=data.index)
     coeffs_seleccion = coeffs_df[(coeffs_df['RAZA'] == raza) & (coeffs_df['SEXO'] == sexo)]
     if not coeffs_seleccion.empty:
@@ -32,6 +35,7 @@ def calcular_peso_estimado(data, coeffs_df, raza, sexo):
     return pd.Series(0, index=data.index)
 
 def style_kpi_df(df):
+    """Aplica formato condicional a un DataFrame de KPIs de forma eficiente."""
     def formatter(val, metric_name):
         if "Conversión" in metric_name: return f"{val:,.3f}"
         if "($)" in metric_name: return f"${val:,.2f}"
@@ -41,6 +45,7 @@ def style_kpi_df(df):
     return df_styled
 
 def calcular_curva_mortalidad(dias_ciclo, total_mortalidad, tipo, porcentaje=50):
+    """Genera un array de mortalidad acumulada según un escenario."""
     dias_ciclo = int(dias_ciclo)
     total_mortalidad = float(total_mortalidad)
     mortalidad_acumulada = np.zeros(dias_ciclo)
@@ -66,3 +71,30 @@ def calcular_curva_mortalidad(dias_ciclo, total_mortalidad, tipo, porcentaje=50)
         curva_final = np.linspace(0, mortalidad_final_concentrada, dias_concentracion)
         mortalidad_acumulada[punto_inicio_final:] = mortalidad_previa + curva_final
     return np.floor(mortalidad_acumulada)
+
+# --- NUEVA FUNCIÓN CENTRALIZADA ---
+def reconstruir_tabla_base(st_session_state, df_referencia, df_coeffs, df_coeffs_15):
+    """
+    Reconstruye la tabla base de proyecciones a partir de los parámetros guardados en la sesión.
+    Devuelve la tabla truncada al peso objetivo y lista para simulaciones.
+    """
+    tabla = df_referencia[
+        (df_referencia['RAZA'] == st_session_state.raza_seleccionada) &
+        (df_referencia['SEXO'] == st_session_state.sexo_seleccionado)
+    ].copy()
+
+    if tabla.empty:
+        return None
+
+    tabla['Cons_Acum'] = clean_numeric_column(tabla['Cons_Acum'])
+    tabla['Peso'] = clean_numeric_column(tabla['Peso'])
+    factor_ajuste = 1 - (st_session_state.restriccion_programada / 100.0)
+    tabla['Cons_Acum_Ajustado'] = tabla['Cons_Acum'] * factor_ajuste
+    
+    dias_1_14 = tabla['Dia'] <= 14
+    dias_15_adelante = tabla['Dia'] >= 15
+    tabla.loc[dias_1_14, 'Peso_Estimado'] = calcular_peso_estimado(tabla[dias_1_14], df_coeffs_15, st_session_state.raza_seleccionada, st_session_state.sexo_seleccionado)
+    tabla.loc[dias_15_adelante, 'Peso_Estimado'] = calcular_peso_estimado(tabla[dias_15_adelante], df_coeffs, st_session_state.raza_seleccionada, st_session_state.sexo_seleccionado)
+    tabla['Peso_Estimado'] *= (st_session_state.productividad / 100.0)
+    
+    return tabla
