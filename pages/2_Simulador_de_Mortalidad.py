@@ -1,4 +1,4 @@
-# Contenido COMPLETO y CORREGIDO para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
@@ -6,9 +6,63 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import timedelta
 from pathlib import Path
-from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcular_curva_mortalidad, style_kpi_df
+from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcular_curva_mortalidad
 
 st.set_page_config(page_title="Simulador de Mortalidad", page_icon="💀", layout="wide")
+
+# --- NUEVA FUNCIÓN DE CÁLCULO PARA REUTILIZAR CÓDIGO ---
+def calcular_kpis_escenario(tabla_base, tipo_mortalidad, porcentaje_mortalidad, st_session_state):
+    """
+    Toma una tabla base y parámetros de mortalidad, y devuelve un diccionario con todos los KPIs calculados.
+    """
+    tabla_escenario = tabla_base.copy()
+    
+    # Aplicar la curva de mortalidad específica
+    dia_obj = tabla_escenario['Dia'].iloc[-1]
+    total_mortalidad_aves = st_session_state.aves_programadas * (st_session_state.mortalidad_objetivo / 100.0)
+    mortalidad_acum = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, tipo_mortalidad, porcentaje_mortalidad)
+    
+    tabla_escenario['Mortalidad_Acumulada'] = mortalidad_acum
+    tabla_escenario['Saldo'] = st_session_state.aves_programadas - tabla_escenario['Mortalidad_Acumulada']
+
+    # Recalcular el consumo del lote con el nuevo saldo
+    tabla_escenario['Cons_Diario_Ave_gr'] = tabla_escenario['Cons_Acum_Ajustado'].diff().fillna(tabla_escenario['Cons_Acum_Ajustado'].iloc[0])
+    if st_session_state.unidades_calculo == "Kilos":
+        daily_col_name = "Kilos Diarios"
+        tabla_escenario[daily_col_name] = (tabla_escenario['Cons_Diario_Ave_gr'] * tabla_escenario['Saldo']) / 1000
+    else:
+        daily_col_name = "Bultos Diarios"
+        tabla_escenario[daily_col_name] = np.ceil((tabla_escenario['Cons_Diario_Ave_gr'] * tabla_escenario['Saldo']) / 40000)
+
+    # Recalcular costos
+    consumo_por_fase = tabla_escenario.groupby('Fase_Alimento')[daily_col_name].sum()
+    factor_kg = 1 if st_session_state.unidades_calculo == "Kilos" else 40
+    
+    costos_kg_map = {
+        'Pre-iniciador': st_session_state.val_pre_iniciador, 'Iniciador': st_session_state.val_iniciador,
+        'Engorde': st_session_state.val_engorde, 'Retiro': st_session_state.val_retiro
+    }
+    costo_total_alimento = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index) * factor_kg
+    
+    costo_total_pollitos = st_session_state.aves_programadas * st_session_state.costo_pollito
+    costo_total_otros = st_session_state.aves_programadas * st_session_state.otros_costos_ave
+    costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
+
+    aves_producidas = tabla_escenario['Saldo'].iloc[-1]
+    peso_obj_final = tabla_escenario['Peso_Estimado'].iloc[-1]
+    kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
+    
+    # Devolver un diccionario con los resultados
+    if kilos_totales_producidos > 0:
+        return {
+            "costo_total_pollitos": costo_total_pollitos,
+            "costo_total_alimento": costo_total_alimento,
+            "costo_total_otros": costo_total_otros,
+            "costo_total_lote": costo_total_lote,
+            "kilos_totales_producidos": kilos_totales_producidos,
+            "costo_total_por_kilo": costo_total_lote / kilos_totales_producidos,
+        }
+    return None
 
 st.title("💀 Simulador de Escenarios de Mortalidad")
 st.markdown("""
@@ -20,7 +74,7 @@ if 'aves_programadas' not in st.session_state or st.session_state.aves_programad
     st.warning("👈 Por favor, ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
     st.stop()
 
-# --- Cargar datos (necesario para la reconstrucción independiente) ---
+# --- Cargar datos ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
@@ -37,7 +91,7 @@ if tipo_escenario != "Lineal (Uniforme)":
     porcentaje_escenario = st.slider(f"Porcentaje de la mortalidad total a concentrar (%):", 0, 100, 50, 5, key="sim_porcentaje")
 
 try:
-    # --- PASO 1: RECONSTRUCCIÓN COMPLETA DE LA TABLA BASE ---
+    # --- PASO 1: RECONSTRUCCIÓN DE LA TABLA BASE (Una sola vez) ---
     tabla_base = df_referencia[
         (df_referencia['RAZA'] == st.session_state.raza_seleccionada) &
         (df_referencia['SEXO'] == st.session_state.sexo_seleccionado)
@@ -59,126 +113,77 @@ try:
     tabla_base['Peso_Estimado'] *= (st.session_state.productividad / 100.0)
 
     closest_idx = (tabla_base['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
-    tabla_simulada = tabla_base.loc[:closest_idx].copy()
+    tabla_base_final = tabla_base.loc[:closest_idx].copy()
     
-    # --- PASO 2: ASIGNAR FASE DE ALIMENTO ---
-    df_interp = tabla_simulada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+    df_interp = tabla_base_final.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
     consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
     
     limite_pre = st.session_state.pre_iniciador
     limite_ini = st.session_state.pre_iniciador + st.session_state.iniciador
     limite_ret = consumo_total_objetivo_ave - st.session_state.retiro if st.session_state.retiro > 0 else np.inf
     conditions = [
-        tabla_simulada['Cons_Acum_Ajustado'] <= limite_pre,
-        tabla_simulada['Cons_Acum_Ajustado'].between(limite_pre, limite_ini, inclusive='right'),
-        tabla_simulada['Cons_Acum_Ajustado'] > limite_ret
+        tabla_base_final['Cons_Acum_Ajustado'] <= limite_pre,
+        tabla_base_final['Cons_Acum_Ajustado'].between(limite_pre, limite_ini, inclusive='right'),
+        tabla_base_final['Cons_Acum_Ajustado'] > limite_ret
     ]
     choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
-    tabla_simulada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
+    tabla_base_final['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
-    # --- PASO 3: APLICAR LA SIMULACIÓN DE MORTALIDAD ---
-    dia_obj = tabla_simulada['Dia'].iloc[-1]
-    total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
-    mortalidad_acum_simulada = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, tipo_escenario, porcentaje_escenario)
-    tabla_simulada['Mortalidad_Acumulada'] = mortalidad_acum_simulada
-    tabla_simulada['Saldo'] = st.session_state.aves_programadas - tabla_simulada['Mortalidad_Acumulada']
-
-    # --- PASO 4: RECALCULAR CONSUMO DIARIO Y KPIS ---
-    tabla_simulada['Cons_Diario_Ave_gr'] = tabla_simulada['Cons_Acum_Ajustado'].diff().fillna(tabla_simulada['Cons_Acum_Ajustado'].iloc[0])
-    if st.session_state.unidades_calculo == "Kilos":
-        daily_col_name = "Kilos Diarios"
-        tabla_simulada[daily_col_name] = (tabla_simulada['Cons_Diario_Ave_gr'] * tabla_simulada['Saldo']) / 1000
-    else:
-        daily_col_name = "Bultos Diarios"
-        tabla_simulada[daily_col_name] = np.ceil((tabla_simulada['Cons_Diario_Ave_gr'] * tabla_simulada['Saldo']) / 40000)
-
-    consumo_por_fase = tabla_simulada.groupby('Fase_Alimento')[daily_col_name].sum()
-    factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
-    consumo_total_kg = consumo_por_fase.sum() * factor_kg
-    
-    costos_kg_map = {
-        'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
-        'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
-    }
-    costo_total_alimento = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index) * factor_kg
-    
-    costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
-    costo_total_otros = st.session_state.aves_programadas * st.session_state.otros_costos_ave
-    costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
-
-    aves_producidas = tabla_simulada['Saldo'].iloc[-1]
-    peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
-    kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
+    # --- PASO 2: CALCULAR AMBOS ESCENARIOS ---
+    resultados_lineal = calcular_kpis_escenario(tabla_base_final, "Lineal (Uniforme)", 50, st.session_state)
+    resultados_simulados = calcular_kpis_escenario(tabla_base_final, tipo_escenario, porcentaje_escenario, st.session_state)
 
     st.header("2. Resultados de la Simulación")
-    if kilos_totales_producidos > 0:
-        costo_total_kilo = costo_total_lote / kilos_totales_producidos
-        conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
+    if resultados_lineal and resultados_simulados:
         
-        # --- LÍNEAS RESTAURADAS PARA EL CÁLCULO DE COSTO POR MORTALIDAD ---
-        tabla_simulada['Costo_Kg_Dia'] = tabla_simulada['Fase_Alimento'].map(costos_kg_map)
-        tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
-        tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
-        tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
-        costo_alimento_desperdiciado = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
+        # --- PASO 3: CREAR Y MOSTRAR LA TABLA COMPARATIVA ---
+        st.subheader("Análisis Comparativo de Escenarios")
         
-        aves_muertas_total = st.session_state.aves_programadas - aves_producidas
-        costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
-        costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
-        
-        st.subheader("Indicadores de Eficiencia Clave (Simulado)")
-        kpi_cols = st.columns(3)
-        kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
-        kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
-        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
-        
-        st.markdown("---")
-        st.subheader("Desglose del Costo por Kilo Producido")
+        kilos_producidos = resultados_lineal["kilos_totales_producidos"] # Es el mismo en ambos
 
-        costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-        costo_pollitos_kilo = costo_total_pollitos / kilos_totales_producidos
-        otros_costos_kilo = costo_total_otros / kilos_totales_producidos
-
-        summary_data = {
-            "Componente de Costo": ["Costo Alimento por Kilo", "Costo Pollito por Kilo", "Otros Costos por Kilo", "Costo Total por Kilo"],
-            "Valor ($/kg)": [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo, costo_total_kilo]
+        comparative_data = {
+            "Concepto": [
+                "Costo Total Pollitos ($)", "Costo Total Alimento ($)", "Otros Costos ($)",
+                "**COSTO TOTAL DEL LOTE ($)**", "Kilos Totales Producidos (kg)",
+                "**COSTO TOTAL POR KILO ($/kg)**"
+            ],
+            "Escenario Lineal (Base)": [
+                resultados_lineal["costo_total_pollitos"],
+                resultados_lineal["costo_total_alimento"],
+                resultados_lineal["costo_total_otros"],
+                resultados_lineal["costo_total_lote"],
+                kilos_producidos,
+                resultados_lineal["costo_total_por_kilo"]
+            ],
+            "Escenario Simulado": [
+                resultados_simulados["costo_total_pollitos"],
+                resultados_simulados["costo_total_alimento"],
+                resultados_simulados["costo_total_otros"],
+                resultados_simulados["costo_total_lote"],
+                kilos_producidos,
+                resultados_simulados["costo_total_por_kilo"]
+            ]
         }
-        df_summary = pd.DataFrame(summary_data)
+        df_comparative = pd.DataFrame(comparative_data).set_index("Concepto")
+        
+        # Calcular la diferencia para mostrarla visualmente
+        diferencia = resultados_simulados["costo_total_por_kilo"] - resultados_lineal["costo_total_por_kilo"]
+
         st.dataframe(
-            df_summary.style.format({"Valor ($/kg)": "${:,.2f}"}).hide(axis="index"),
-            use_container_width=True
+            df_comparative.style.format("${:,.2f}", subset=pd.IndexSlice[["Costo Total Pollitos ($)", "Costo Total Alimento ($)", "Otros Costos ($)", "**COSTO TOTAL DEL LOTE ($)**", "**COSTO TOTAL POR KILO ($/kg)**"], :])
+                                .format("{:,.2f} kg", subset=pd.IndexSlice[["Kilos Totales Producidos (kg)"], :])
+        )
+
+        st.metric(
+            label=f"Diferencia vs. Escenario Lineal",
+            value=f"${resultados_simulados['costo_total_por_kilo']:,.2f}",
+            delta=f"${diferencia:,.2f} por kilo",
+            delta_color="inverse"
         )
         
-        st.markdown("---")
-        st.subheader("Gráficos del Escenario Simulado")
-        col1_graf, col2_graf = st.columns(2)
-
-        with col1_graf:
-            fig, ax = plt.subplots()
-            ax.plot(tabla_simulada['Dia'], tabla_simulada['Saldo'], color='orange', label='Saldo de Aves')
-            ax.set_xlabel("Día del Ciclo")
-            ax.set_ylabel("Número de Aves")
-            ax.legend(loc='upper left')
-            ax.grid(True, linestyle='--', alpha=0.6)
-            ax_twin = ax.twinx()
-            ax_twin.bar(tabla_simulada['Dia'], tabla_simulada['Mortalidad_Diaria'], color='red', alpha=0.5, label='Mortalidad Diaria')
-            ax_twin.set_ylabel("Mortalidad Diaria")
-            ax_twin.legend(loc='upper right')
-            fig.suptitle("Curva de Saldo y Mortalidad Diaria")
-            st.pyplot(fig)
-
-        with col2_graf:
-            sizes = [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo]
-            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
-            colors = ['darkred', 'lightblue', 'lightcoral']
-
-            fig_pie, ax_pie = plt.subplots()
-            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
-            ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
-            st.pyplot(fig_pie)
     else:
-        st.warning("No se pueden calcular los KPIs: los kilos producidos son cero.")
+        st.warning("No se pueden calcular los KPIs.")
 
 except Exception as e:
-    st.error(f"Ocurrió un error inesperado durante la simulación.")
+    st.error("Ocurrió un error inesperado durante la simulación.")
     st.exception(e)
