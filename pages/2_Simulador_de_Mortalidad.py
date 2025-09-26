@@ -131,6 +131,24 @@ try:
         kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
         kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
         
+        # --- CAMBIO: Nueva tabla de desglose de costos ---
+        st.markdown("---")
+        st.subheader("Desglose del Costo por Kilo Producido")
+
+        costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
+        costo_pollitos_kilo = costo_total_pollitos / kilos_totales_producidos
+        otros_costos_kilo = costo_total_otros / kilos_totales_producidos
+
+        summary_data = {
+            "Componente de Costo": ["Costo Alimento por Kilo", "Costo Pollito por Kilo", "Otros Costos por Kilo", "Costo Total por Kilo"],
+            "Valor ($/kg)": [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo, costo_total_kilo]
+        }
+        df_summary = pd.DataFrame(summary_data)
+        st.dataframe(
+            df_summary.style.format({"Valor ($/kg)": "${:,.2f}"}).hide(axis="index"),
+            use_container_width=True
+        )
+        
         st.markdown("---")
         st.subheader("Gráficos del Escenario Simulado")
         col1_graf, col2_graf = st.columns(2)
@@ -150,10 +168,6 @@ try:
             st.pyplot(fig)
 
         with col2_graf:
-            costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-            costo_pollitos_kilo = costo_total_pollitos / kilos_totales_producidos
-            otros_costos_kilo = costo_total_otros / kilos_totales_producidos
-            
             sizes = [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo]
             labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
             colors = ['darkred', 'lightblue', 'lightcoral']
