@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from utils import load_data, reconstruir_tabla_base # Usamos la función de reconstrucción
+from utils import load_data, reconstruir_tabla_base
 
 st.set_page_config(page_title="Simulador de Alimentación", page_icon="🌽", layout="wide")
 
@@ -36,7 +36,6 @@ Aquí puedes ajustar las cantidades de las fases de alimento para encontrar la c
 que te permita alcanzar tu peso objetivo. El modelo asume que el rendimiento biológico (peso y conversión) no cambia.
 """)
 
-# --- Controles interactivos para el plan de alimentación ---
 c1, c2, c3 = st.columns(3)
 with c1:
     pre_iniciador_sim = st.slider("Gramos Pre-iniciador/ave", 0, 500, st.session_state.pre_iniciador)
@@ -46,7 +45,6 @@ with c3:
     retiro_sim = st.slider("Gramos Retiro/ave", 0, 1000, st.session_state.retiro)
 
 try:
-    # --- Cálculos para el Plan de Alimentación Simulado ---
     tabla_sim_alimento = tabla_base_completa.copy()
     closest_idx = (tabla_sim_alimento['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
     tabla_sim_alimento = tabla_sim_alimento.loc[:closest_idx].copy()
@@ -109,19 +107,27 @@ try:
         'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
     }
 
+    # Pre-filtrar la tabla base para eliminar filas donde el peso no se pudo estimar
+    tabla_base_limpia = tabla_base_completa.dropna(subset=['Peso_Estimado']).copy()
+    max_peso_posible = tabla_base_limpia['Peso_Estimado'].max()
+
     for peso_obj_sens in pesos_a_evaluar:
         if peso_obj_sens <= 0: continue
         
-        tabla_sens = tabla_base_completa.copy()
+        tabla_sens = tabla_base_limpia.copy()
         
-        try:
-            closest_idx_sens = (tabla_sens['Peso_Estimado'] - peso_obj_sens).abs().idxmin()
-            tabla_sens = tabla_sens.loc[:closest_idx_sens].copy()
-        except ValueError:
-            continue
-
-        # --- CORRECCIÓN: Se añade el cálculo de Fase_Alimento dentro del bucle ---
-        df_interp_sens = tabla_sens.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+        # --- CORRECCIÓN: Lógica de truncamiento más robusta ---
+        # Si el peso objetivo es mayor al máximo posible, se usa el máximo.
+        if peso_obj_sens > max_peso_posible:
+            tabla_truncada = tabla_sens.copy()
+        else:
+            # Si no, se busca el día más cercano y se corta la tabla
+            idx = (tabla_sens['Peso_Estimado'] - peso_obj_sens).abs().idxmin()
+            tabla_truncada = tabla_sens.loc[:idx].copy()
+        
+        # A partir de aquí, todos los cálculos usan 'tabla_truncada'
+        
+        df_interp_sens = tabla_truncada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
         consumo_total_sens = np.interp(peso_obj_sens, df_interp_sens['Peso_Estimado'], df_interp_sens['Cons_Acum_Ajustado'])
         
         limite_pre_sens = st.session_state.pre_iniciador
@@ -129,30 +135,29 @@ try:
         limite_ret_sens = consumo_total_sens - st.session_state.retiro if st.session_state.retiro > 0 else np.inf
         
         conditions_sens = [
-            tabla_sens['Cons_Acum_Ajustado'] <= limite_pre_sens,
-            tabla_sens['Cons_Acum_Ajustado'].between(limite_pre_sens, limite_ini_sens, inclusive='right'),
-            tabla_sens['Cons_Acum_Ajustado'] > limite_ret_sens
+            tabla_truncada['Cons_Acum_Ajustado'] <= limite_pre_sens,
+            tabla_truncada['Cons_Acum_Ajustado'].between(limite_pre_sens, limite_ini_sens, inclusive='right'),
+            tabla_truncada['Cons_Acum_Ajustado'] > limite_ret_sens
         ]
         choices_sens = ['Pre-iniciador', 'Iniciador', 'Retiro']
-        tabla_sens['Fase_Alimento'] = np.select(conditions_sens, choices_sens, default='Engorde')
-        # --- FIN DE LA CORRECCIÓN ---
+        tabla_truncada['Fase_Alimento'] = np.select(conditions_sens, choices_sens, default='Engorde')
 
-        dias_ciclo = tabla_sens['Dia'].iloc[-1]
+        dias_ciclo = tabla_truncada['Dia'].iloc[-1]
         
         mortalidad_total_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100)
         mortalidad_diaria_prom = mortalidad_total_aves / dias_ciclo if dias_ciclo > 0 else 0
-        tabla_sens['Saldo'] = st.session_state.aves_programadas - (tabla_sens['Dia'] * mortalidad_diaria_prom).apply(np.floor)
+        tabla_truncada['Saldo'] = st.session_state.aves_programadas - (tabla_truncada['Dia'] * mortalidad_diaria_prom).apply(np.floor)
         
-        tabla_sens['Cons_Diario_Ave_gr'] = tabla_sens['Cons_Acum_Ajustado'].diff().fillna(tabla_sens['Cons_Acum_Ajustado'].iloc[0])
-        tabla_sens['Kilos_Diarios_Lote'] = (tabla_sens['Cons_Diario_Ave_gr'] * tabla_sens['Saldo']) / 1000
-        consumo_total_kg = tabla_sens['Kilos_Diarios_Lote'].sum()
+        tabla_truncada['Cons_Diario_Ave_gr'] = tabla_truncada['Cons_Acum_Ajustado'].diff().fillna(tabla_truncada['Cons_Acum_Ajustado'].iloc[0])
+        tabla_truncada['Kilos_Diarios_Lote'] = (tabla_truncada['Cons_Diario_Ave_gr'] * tabla_truncada['Saldo']) / 1000
+        consumo_total_kg = tabla_truncada['Kilos_Diarios_Lote'].sum()
         
-        aves_producidas = tabla_sens['Saldo'].iloc[-1]
-        peso_final_real = tabla_sens['Peso_Estimado'].iloc[-1]
+        aves_producidas = tabla_truncada['Saldo'].iloc[-1]
+        peso_final_real = tabla_truncada['Peso_Estimado'].iloc[-1]
         kilos_producidos_sens = (aves_producidas * peso_final_real) / 1000
         
         if kilos_producidos_sens > 0:
-            consumo_por_fase_sens = tabla_sens.groupby('Fase_Alimento')['Kilos_Diarios_Lote'].sum()
+            consumo_por_fase_sens = tabla_truncada.groupby('Fase_Alimento')['Kilos_Diarios_Lote'].sum()
             costo_total_alimento_sens = sum(consumo_por_fase_sens.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase_sens.index)
             
             costo_total_pollitos_sens = st.session_state.aves_programadas * st.session_state.costo_pollito
@@ -175,8 +180,14 @@ try:
         df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
         columnas_finales = ["Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)"]
         
+        # Asegurarse de que la fila del peso base esté resaltada
+        def highlight_base(row):
+            is_base = row["Peso Objetivo (gr)"] == peso_base
+            return ['background-color: #D6EAF8' if is_base else '' for _ in row]
+
         st.dataframe(
             df_sensibilidad[columnas_finales].style
+            .apply(highlight_base, axis=1)
             .format({
                 "Peso Objetivo (gr)": "{:,.0f}",
                 "Días de Ciclo": "{:,.0f}",
