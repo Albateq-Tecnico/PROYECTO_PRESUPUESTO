@@ -106,9 +106,13 @@ try:
     peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
     kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
 
+    costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
+    costo_base_conocido = costo_total_alimento + costo_total_pollitos
+    participacion_base = st.session_state.porcentaje_participacion_alimento + st.session_state.porcentaje_participacion_pollito
+
     st.header("2. Resultados de la Simulación")
-    if kilos_totales_producidos > 0 and st.session_state.porcentaje_participacion_alimento > 0:
-        costo_total_lote = costo_total_alimento / (st.session_state.porcentaje_participacion_alimento / 100)
+    if kilos_totales_producidos > 0 and participacion_base > 0:
+        costo_total_lote = costo_base_conocido / (participacion_base / 100)
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
         
@@ -116,36 +120,18 @@ try:
         tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
         tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
         tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
-        costo_desperdicio = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
+        costo_alimento_desperdiciado = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
+        
+        aves_muertas_total = st.session_state.aves_programadas - aves_producidas
+        costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
+        costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
 
-        # --- INICIO DE LA SECCIÓN RESTAURADA ---
         st.subheader("Indicadores de Eficiencia Clave (Simulado)")
         kpi_cols = st.columns(3)
         kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
         kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
-        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio:,.2f}", help="Costo estimado del alimento consumido por las aves que murieron.")
+        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
         
-        st.markdown("---")
-        st.subheader("Análisis de Costos Detallado (Simulado)")
-        kpi_data = {
-            "Métrica": [
-                "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
-                "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)",
-                "Costo Total Alimento ($)", "Costo por Mortalidad ($)", "Costo Total de Producción ($)"
-            ], "Valor": [
-                aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj_final,
-                costo_total_alimento / kilos_totales_producidos, costo_total_kilo,
-                costo_total_alimento, costo_desperdicio, costo_total_lote
-            ]
-        }
-        df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.dataframe(style_kpi_df(df_kpi.iloc[:5]), use_container_width=True)
-        with col2:
-            st.dataframe(style_kpi_df(df_kpi.iloc[5:]), use_container_width=True)
-
         st.markdown("---")
         st.subheader("Gráficos del Escenario Simulado")
         col1_graf, col2_graf = st.columns(2)
@@ -165,18 +151,21 @@ try:
             st.pyplot(fig)
 
         with col2_graf:
-            fig_pie, ax_pie = plt.subplots()
             costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-            otros_costos_kilo = costo_total_kilo - costo_alimento_kilo
-            sizes = [costo_alimento_kilo, otros_costos_kilo]
-            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Otros Costos\n${sizes[1]:,.2f}"]
-            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
-            ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
+            costo_pollitos_kilo = costo_total_pollitos / kilos_totales_producidos
+            otros_costos_kilo = costo_total_kilo - costo_alimento_kilo - costo_pollitos_kilo
+            
+            sizes = [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo]
+            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
+            colors = ['darkred', 'lightblue', 'lightcoral']
+
+            fig_pie, ax_pie = plt.subplots()
+            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+            ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
             st.pyplot(fig_pie)
-        # --- FIN DE LA SECCIÓN RESTAURADA ---
     else:
-        st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación del alimento son cero.")
+        st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación de costos son cero.")
 
 except Exception as e:
-    st.error(f"Ocurrió un error inesperado durante la simulación.")
+    st.error("Ocurrió un error inesperado durante la simulación.")
     st.exception(e)
