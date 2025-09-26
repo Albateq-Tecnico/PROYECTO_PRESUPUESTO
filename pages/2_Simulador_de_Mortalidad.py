@@ -87,7 +87,14 @@ try:
     peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
     kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
     consumo_total_kg = sum(unidades) * factor_kg
-
+# --- AÑADE ESTE BLOQUE COMPLETO AQUÍ ---
+    st.subheader("--- PUNTOS DE CONTROL (DEBUG) ---")
+    debug_cols = st.columns(3)
+    debug_cols[0].metric("Total Kilos de Alimento (variable)", f"{consumo_total_kg:,.2f}")
+    debug_cols[1].metric("Kilos de Carne (constante)", f"{kilos_totales_producidos:,.2f}")
+    debug_cols[2].metric("Costo Total Alimento (variable)", f"${costo_total_alimento:,.2f}")
+    st.markdown("---")
+# --- FIN DEL BLOQUE DE DEBUG ---
     st.header("2. Resultados de la Simulación")
     if kilos_totales_producidos > 0 and st.session_state.porcentaje_participacion_alimento > 0:
         costo_total_lote = costo_total_alimento / (st.session_state.porcentaje_participacion_alimento / 100)
