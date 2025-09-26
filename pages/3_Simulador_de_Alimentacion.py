@@ -1,4 +1,4 @@
-# Contenido COMPLETO y ACTUALIZADO para: pages/3_Simulador_de_Alimentacion.py
+# Contenido COMPLETO y CORREGIDO para: pages/3_Simulador_de_Alimentacion.py
 
 import streamlit as st
 import pandas as pd
@@ -104,6 +104,11 @@ try:
     paso = 100
     pesos_a_evaluar = [peso_base + i * paso for i in range(-3, 4)]
 
+    costos_kg_map = {
+        'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
+        'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
+    }
+
     for peso_obj_sens in pesos_a_evaluar:
         if peso_obj_sens <= 0: continue
         
@@ -115,8 +120,24 @@ try:
         except ValueError:
             continue
 
+        # --- CORRECCIÓN: Se añade el cálculo de Fase_Alimento dentro del bucle ---
+        df_interp_sens = tabla_sens.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+        consumo_total_sens = np.interp(peso_obj_sens, df_interp_sens['Peso_Estimado'], df_interp_sens['Cons_Acum_Ajustado'])
+        
+        limite_pre_sens = st.session_state.pre_iniciador
+        limite_ini_sens = st.session_state.pre_iniciador + st.session_state.iniciador
+        limite_ret_sens = consumo_total_sens - st.session_state.retiro if st.session_state.retiro > 0 else np.inf
+        
+        conditions_sens = [
+            tabla_sens['Cons_Acum_Ajustado'] <= limite_pre_sens,
+            tabla_sens['Cons_Acum_Ajustado'].between(limite_pre_sens, limite_ini_sens, inclusive='right'),
+            tabla_sens['Cons_Acum_Ajustado'] > limite_ret_sens
+        ]
+        choices_sens = ['Pre-iniciador', 'Iniciador', 'Retiro']
+        tabla_sens['Fase_Alimento'] = np.select(conditions_sens, choices_sens, default='Engorde')
+        # --- FIN DE LA CORRECCIÓN ---
+
         dias_ciclo = tabla_sens['Dia'].iloc[-1]
-        consumo_total_ave = tabla_sens['Cons_Acum_Ajustado'].iloc[-1]
         
         mortalidad_total_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100)
         mortalidad_diaria_prom = mortalidad_total_aves / dias_ciclo if dias_ciclo > 0 else 0
@@ -131,7 +152,6 @@ try:
         kilos_producidos_sens = (aves_producidas * peso_final_real) / 1000
         
         if kilos_producidos_sens > 0:
-            # --- CAMBIO: Se calculan todos los costos para cada escenario de peso ---
             consumo_por_fase_sens = tabla_sens.groupby('Fase_Alimento')['Kilos_Diarios_Lote'].sum()
             costo_total_alimento_sens = sum(consumo_por_fase_sens.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase_sens.index)
             
@@ -153,12 +173,7 @@ try:
 
     if resultados_sensibilidad:
         df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
-        
-        # --- CAMBIO: Se actualiza el dataframe para mostrar las nuevas columnas ---
-        columnas_finales = [
-            "Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", 
-            "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)"
-        ]
+        columnas_finales = ["Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)"]
         
         st.dataframe(
             df_sensibilidad[columnas_finales].style
