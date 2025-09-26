@@ -17,7 +17,7 @@ Los parámetros base se toman de los definidos en la página 'Presupuesto Princi
 """)
 
 if 'aves_programadas' not in st.session_state or st.session_state.aves_programadas <= 0:
-    st.warning("👈 Por favor, configura y ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
+    st.warning("👈 Por favor, ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
     st.stop()
 
 # --- Cargar datos (necesario para la reconstrucción independiente) ---
@@ -102,17 +102,16 @@ try:
     }
     costo_total_alimento = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index) * factor_kg
     
+    costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
+    costo_total_otros = st.session_state.aves_programadas * st.session_state.otros_costos_ave
+    costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
+
     aves_producidas = tabla_simulada['Saldo'].iloc[-1]
     peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
     kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
 
-    costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
-    costo_base_conocido = costo_total_alimento + costo_total_pollitos
-    participacion_base = st.session_state.porcentaje_participacion_alimento + st.session_state.porcentaje_participacion_pollito
-
     st.header("2. Resultados de la Simulación")
-    if kilos_totales_producidos > 0 and participacion_base > 0:
-        costo_total_lote = costo_base_conocido / (participacion_base / 100)
+    if kilos_totales_producidos > 0:
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
         
@@ -121,7 +120,7 @@ try:
         tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
         tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
         costo_alimento_desperdiciado = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
-        
+
         aves_muertas_total = st.session_state.aves_programadas - aves_producidas
         costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
         costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
@@ -153,7 +152,7 @@ try:
         with col2_graf:
             costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
             costo_pollitos_kilo = costo_total_pollitos / kilos_totales_producidos
-            otros_costos_kilo = costo_total_kilo - costo_alimento_kilo - costo_pollitos_kilo
+            otros_costos_kilo = costo_total_otros / kilos_totales_producidos
             
             sizes = [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo]
             labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
@@ -164,7 +163,7 @@ try:
             ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
             st.pyplot(fig_pie)
     else:
-        st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación de costos son cero.")
+        st.warning("No se pueden calcular los KPIs: los kilos producidos son cero.")
 
 except Exception as e:
     st.error("Ocurrió un error inesperado durante la simulación.")
