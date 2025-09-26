@@ -1,4 +1,40 @@
-# Reemplaza el bloque try...except en pages/2_Simulador_de_Mortalidad.py con esto:
+# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import timedelta
+from pathlib import Path
+from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcular_curva_mortalidad, style_kpi_df
+
+st.set_page_config(page_title="Simulador de Mortalidad", page_icon="💀", layout="wide")
+
+st.title("💀 Simulador de Escenarios de Mortalidad")
+st.markdown("""
+Esta herramienta te permite modelar cómo diferentes curvas de mortalidad afectan los indicadores clave de tu presupuesto. 
+Los parámetros base se toman de los definidos en la página 'Presupuesto Principal'.
+""")
+
+if 'aves_programadas' not in st.session_state or st.session_state.aves_programadas <= 0:
+    st.warning("👈 Por favor, ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
+    st.stop()
+
+# --- Cargar datos (necesario para la reconstrucción independiente) ---
+BASE_DIR = Path(__file__).resolve().parent.parent
+df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
+df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
+df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
+
+st.header("1. Define el Escenario de Mortalidad")
+tipo_escenario = st.radio(
+    "Selecciona un tipo de curva de mortalidad:",
+    ["Lineal (Uniforme)", "Concentrada al Inicio (Semana 1)", "Concentrada al Final (Última Semana)"],
+    horizontal=True, key="sim_tipo_escenario"
+)
+porcentaje_escenario = 50
+if tipo_escenario != "Lineal (Uniforme)":
+    porcentaje_escenario = st.slider(f"Porcentaje de la mortalidad total a concentrar (%):", 0, 100, 50, 5, key="sim_porcentaje")
 
 try:
     # --- PASO 1: RECONSTRUCCIÓN COMPLETA DE LA TABLA BASE ---
@@ -79,15 +115,23 @@ try:
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
         
+        tabla_simulada['Costo_Kg_Dia'] = tabla_simulada['Fase_Alimento'].map(costos_kg_map)
+        tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
+        tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
         tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
-        costo_desperdicio = # ... (cálculo de costo desperdicio)
+        costo_alimento_desperdiciado = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
+
+        aves_muertas_total = st.session_state.aves_programadas - aves_producidas
+        costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
+        costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
 
         st.subheader("Indicadores de Eficiencia Clave (Simulado)")
         kpi_cols = st.columns(3)
         kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
         kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
-        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio:,.2f}")
+        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
         
+        # --- CAMBIO: Nueva tabla de desglose de costos ---
         st.markdown("---")
         st.subheader("Desglose del Costo por Kilo Producido")
 
@@ -100,17 +144,41 @@ try:
             "Valor ($/kg)": [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo, costo_total_kilo]
         }
         df_summary = pd.DataFrame(summary_data)
-        
-        # --- CAMBIO PARA DEPURACIÓN ---
-        st.info("DEBUG: Intentando mostrar la tabla de desglose sin formato.")
-        st.dataframe(df_summary, use_container_width=True) # Mostrar sin estilo
+        st.dataframe(
+            df_summary.style.format({"Valor ($/kg)": "${:,.2f}"}).hide(axis="index"),
+            use_container_width=True
+        )
         
         st.markdown("---")
         st.subheader("Gráficos del Escenario Simulado")
-        # ... (código de los gráficos) ...
+        col1_graf, col2_graf = st.columns(2)
+
+        with col1_graf:
+            fig, ax = plt.subplots()
+            ax.plot(tabla_simulada['Dia'], tabla_simulada['Saldo'], color='orange', label='Saldo de Aves')
+            ax.set_xlabel("Día del Ciclo")
+            ax.set_ylabel("Número de Aves")
+            ax.legend(loc='upper left')
+            ax.grid(True, linestyle='--', alpha=0.6)
+            ax_twin = ax.twinx()
+            ax_twin.bar(tabla_simulada['Dia'], tabla_simulada['Mortalidad_Diaria'], color='red', alpha=0.5, label='Mortalidad Diaria')
+            ax_twin.set_ylabel("Mortalidad Diaria")
+            ax_twin.legend(loc='upper right')
+            fig.suptitle("Curva de Saldo y Mortalidad Diaria")
+            st.pyplot(fig)
+
+        with col2_graf:
+            sizes = [costo_alimento_kilo, costo_pollitos_kilo, otros_costos_kilo]
+            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
+            colors = ['darkred', 'lightblue', 'lightcoral']
+
+            fig_pie, ax_pie = plt.subplots()
+            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+            ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
+            st.pyplot(fig_pie)
     else:
         st.warning("No se pueden calcular los KPIs: los kilos producidos son cero.")
 
 except Exception as e:
-    st.error(f"Ocurrió un error inesperado durante la simulación.")
+    st.error("Ocurrió un error inesperado durante la simulación.")
     st.exception(e)
