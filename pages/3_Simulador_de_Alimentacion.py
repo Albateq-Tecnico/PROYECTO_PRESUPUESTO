@@ -1,10 +1,10 @@
-# Contenido COMPLETO para: pages/3_Simulador_de_Alimentacion.py
+# Contenido COMPLETO y ACTUALIZADO para: pages/3_Simulador_de_Alimentacion.py
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from utils import load_data, reconstruir_tabla_base # Usamos la nueva función
+from utils import load_data, reconstruir_tabla_base # Usamos la función de reconstrucción
 
 st.set_page_config(page_title="Simulador de Alimentación", page_icon="🌽", layout="wide")
 
@@ -54,7 +54,6 @@ try:
     df_interp = tabla_sim_alimento.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
     consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
     
-    # Usar los valores de los sliders para definir las fases
     limite_pre = pre_iniciador_sim
     limite_ini = pre_iniciador_sim + iniciador_sim
     limite_ret = consumo_total_objetivo_ave - retiro_sim if retiro_sim > 0 else np.inf
@@ -66,7 +65,6 @@ try:
     choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
     tabla_sim_alimento['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
-    # Calcular costos con el nuevo plan
     mortalidad_diaria_prom = (st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100)) / len(tabla_sim_alimento)
     tabla_sim_alimento['Saldo'] = st.session_state.aves_programadas - (tabla_sim_alimento['Dia'] * mortalidad_diaria_prom).apply(np.floor)
     tabla_sim_alimento['Cons_Diario_Ave_gr'] = tabla_sim_alimento['Cons_Acum_Ajustado'].diff().fillna(tabla_sim_alimento['Cons_Acum_Ajustado'].iloc[0])
@@ -79,7 +77,6 @@ try:
     consumo_por_fase = tabla_sim_alimento.groupby('Fase_Alimento')['Kilos_Diarios_Lote'].sum()
     costo_total_alimento_sim = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index)
 
-    # Mostrar KPIs del plan simulado
     kilos_producidos = (tabla_sim_alimento['Saldo'].iloc[-1] * tabla_sim_alimento['Peso_Estimado'].iloc[-1]) / 1000
     costo_alimento_kilo_sim = costo_total_alimento_sim / kilos_producidos if kilos_producidos > 0 else 0
     
@@ -104,7 +101,7 @@ Se usa el plan de alimentación y la mortalidad lineal definidos en la página p
 try:
     resultados_sensibilidad = []
     peso_base = st.session_state.peso_objetivo
-    paso = 50
+    paso = 100
     pesos_a_evaluar = [peso_base + i * paso for i in range(-3, 4)]
 
     for peso_obj_sens in pesos_a_evaluar:
@@ -112,54 +109,67 @@ try:
         
         tabla_sens = tabla_base_completa.copy()
         
-        # Encontrar el nuevo punto de corte y truncar
         try:
             closest_idx_sens = (tabla_sens['Peso_Estimado'] - peso_obj_sens).abs().idxmin()
             tabla_sens = tabla_sens.loc[:closest_idx_sens].copy()
         except ValueError:
-            continue # Si el peso objetivo está fuera del rango de la tabla, saltar
+            continue
 
-        # Recalcular todo para este nuevo escenario de peso
         dias_ciclo = tabla_sens['Dia'].iloc[-1]
-        
         consumo_total_ave = tabla_sens['Cons_Acum_Ajustado'].iloc[-1]
         
-        # Mortalidad y Saldo
         mortalidad_total_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100)
         mortalidad_diaria_prom = mortalidad_total_aves / dias_ciclo if dias_ciclo > 0 else 0
         tabla_sens['Saldo'] = st.session_state.aves_programadas - (tabla_sens['Dia'] * mortalidad_diaria_prom).apply(np.floor)
         
-        # Consumo y Costo
         tabla_sens['Cons_Diario_Ave_gr'] = tabla_sens['Cons_Acum_Ajustado'].diff().fillna(tabla_sens['Cons_Acum_Ajustado'].iloc[0])
         tabla_sens['Kilos_Diarios_Lote'] = (tabla_sens['Cons_Diario_Ave_gr'] * tabla_sens['Saldo']) / 1000
         consumo_total_kg = tabla_sens['Kilos_Diarios_Lote'].sum()
         
         aves_producidas = tabla_sens['Saldo'].iloc[-1]
         peso_final_real = tabla_sens['Peso_Estimado'].iloc[-1]
-        kilos_producidos = (aves_producidas * peso_final_real) / 1000
+        kilos_producidos_sens = (aves_producidas * peso_final_real) / 1000
         
-        if kilos_producidos > 0:
-            conversion = consumo_total_kg / kilos_producidos
+        if kilos_producidos_sens > 0:
+            # --- CAMBIO: Se calculan todos los costos para cada escenario de peso ---
+            consumo_por_fase_sens = tabla_sens.groupby('Fase_Alimento')['Kilos_Diarios_Lote'].sum()
+            costo_total_alimento_sens = sum(consumo_por_fase_sens.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase_sens.index)
+            
+            costo_total_pollitos_sens = st.session_state.aves_programadas * st.session_state.costo_pollito
+            costo_total_otros_sens = st.session_state.aves_programadas * st.session_state.otros_costos_ave
+            costo_total_lote_sens = costo_total_alimento_sens + costo_total_pollitos_sens + costo_total_otros_sens
+
+            costo_alimento_kilo = costo_total_alimento_sens / kilos_producidos_sens
+            costo_total_kilo = costo_total_lote_sens / kilos_producidos_sens
+            conversion = consumo_total_kg / kilos_producidos_sens
             
             resultados_sensibilidad.append({
                 "Peso Objetivo (gr)": int(peso_obj_sens),
                 "Días de Ciclo": int(dias_ciclo),
-                "Peso Final Real (gr)": int(peso_final_real),
                 "Conversión Alimenticia": conversion,
-                "Consumo / Ave (gr)": int(consumo_total_ave)
+                "Costo Alimento / Kilo ($)": costo_alimento_kilo,
+                "Costo Total / Kilo ($)": costo_total_kilo
             })
 
     if resultados_sensibilidad:
         df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
+        
+        # --- CAMBIO: Se actualiza el dataframe para mostrar las nuevas columnas ---
+        columnas_finales = [
+            "Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", 
+            "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)"
+        ]
+        
         st.dataframe(
-            df_sensibilidad.style
+            df_sensibilidad[columnas_finales].style
             .format({
                 "Peso Objetivo (gr)": "{:,.0f}",
                 "Días de Ciclo": "{:,.0f}",
-                "Peso Final Real (gr)": "{:,.0f}",
                 "Conversión Alimenticia": "{:,.3f}",
-                "Consumo / Ave (gr)": "{:,.0f}"
+                "Costo Alimento / Kilo ($)": "${:,.2f}",
+                "Costo Total / Kilo ($)": "${:,.2f}"
             })
+            .background_gradient(cmap='Greens_r', subset=['Costo Total / Kilo ($)'])
             .background_gradient(cmap='Greens_r', subset=['Conversión Alimenticia'])
             .set_properties(**{'text-align': 'center'})
         )
