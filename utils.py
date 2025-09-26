@@ -1,139 +1,93 @@
-# Contenido corregido para: pages/2_Simulador_de_Mortalidad.py
+# Contenido completo y corregido para tu archivo: utils.py
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from pathlib import Path
-import matplotlib.pyplot as plt
-from datetime import timedelta
 
-# --- CORRECCIÓN: Ahora el import funcionará correctamente ---
-from utils import calcular_curva_mortalidad, style_kpi_df
+@st.cache_data
+def load_data(file_path):
+    """Carga datos desde un archivo CSV de forma robusta."""
+    try:
+        return pd.read_csv(file_path)
+    except FileNotFoundError:
+        st.error(f"Error Crítico: No se encontró el archivo de datos en: {file_path}")
+        return None
+    except Exception as e:
+        st.error(f"Error Crítico al cargar el archivo {file_path.name}: {e}")
+        return None
 
-st.set_page_config(
-    page_title="Simulador de Mortalidad",
-    page_icon="💀",
-    layout="wide",
-)
+def clean_numeric_column(series):
+    """Convierte una columna a tipo numérico, manejando comas como decimales."""
+    if series.dtype == 'object':
+        return pd.to_numeric(series.str.replace(',', '.', regex=False), errors='coerce')
+    return series
 
-st.title("💀 Simulador de Escenarios de Mortalidad")
-st.markdown("""
-Esta herramienta te permite modelar cómo diferentes curvas de mortalidad afectan los indicadores clave de tu presupuesto. 
-Los parámetros base (aves, peso objetivo, etc.) se toman de los definidos en la página principal.
-""")
-
-if 'tabla_base_calculada' not in st.session_state or st.session_state.tabla_base_calculada.empty:
-    st.warning("👈 Por favor, ejecuta un cálculo en la página 'Presupuesto Principal' primero para poder simular escenarios.")
-    st.stop()
-
-# --- Controles del Escenario ---
-st.header("1. Define el Escenario de Mortalidad")
-tipo_escenario = st.radio(
-    "Selecciona un tipo de curva de mortalidad:",
-    ["Lineal (Uniforme)", "Concentrada al Inicio (Semana 1)", "Concentrada al Final (Última Semana)"],
-    horizontal=True,
-    key="sim_tipo_escenario"
-)
-
-porcentaje_escenario = 50
-if tipo_escenario != "Lineal (Uniforme)":
-    porcentaje_escenario = st.slider(
-        f"Porcentaje de la mortalidad total a concentrar (%):", 0, 100, 50, 5, key="sim_porcentaje"
-    )
-
-try:
-    # Copiar la tabla base desde la sesión para no modificarla
-    tabla_simulada = st.session_state.tabla_base_calculada.copy()
+def calcular_peso_estimado(data, coeffs_df, raza, sexo):
+    """Calcula el peso estimado usando coeficientes de regresión polinomial."""
+    if coeffs_df is None: return pd.Series(0, index=data.index)
     
-    dia_obj = tabla_simulada['Dia'].iloc[-1]
+    coeffs_seleccion = coeffs_df[(coeffs_df['RAZA'] == raza) & (coeffs_df['SEXO'] == sexo)]
     
-    total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
-    mortalidad_acum_simulada = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, tipo_escenario, porcentaje_escenario)
+    if not coeffs_seleccion.empty:
+        params = coeffs_seleccion.iloc[0]
+        x = data['Cons_Acum_Ajustado']
+        return (params['Intercept'] + params['Coef_1'] * x + params['Coef_2'] * (x**2) + 
+                params['Coef_3'] * (x**3) + params['Coef_4'] * (x**4))
     
-    if len(mortalidad_acum_simulada) != len(tabla_simulada):
-        mortalidad_acum_simulada = np.resize(mortalidad_acum_simulada, len(tabla_simulada))
-        mortalidad_acum_simulada[-1] = total_mortalidad_aves 
+    st.warning(f"No se encontraron coeficientes de peso para {raza} - {sexo}. El peso estimado será 0.")
+    return pd.Series(0, index=data.index)
 
-    tabla_simulada['Mortalidad_Acumulada'] = mortalidad_acum_simulada
-    tabla_simulada['Saldo'] = st.session_state.aves_programadas - tabla_simulada['Mortalidad_Acumulada']
+# --- FUNCIÓN OPTIMIZADA ---
+def style_kpi_df(df):
+    """Aplica formato condicional a un DataFrame de KPIs de forma eficiente."""
+    def formatter(val, metric_name):
+        if "Conversión" in metric_name: return f"{val:,.3f}"
+        if "($)" in metric_name: return f"${val:,.2f}"
+        return f"{val:,.0f}"
     
-    if st.session_state.unidades_calculo == "Kilos":
-        total_col, daily_col = "Kilos Totales", "Kilos Diarios"
-        tabla_simulada[total_col] = (tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 1000
-    else:
-        total_col, daily_col = "Bultos Totales", "Bultos Diarios"
-        tabla_simulada[total_col] = np.ceil((tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 40000)
+    df_styled = df.copy()
+    df_styled['Valor'] = [formatter(val, name) for name, val in df['Valor'].items()]
+    return df_styled
+
+# --- FUNCIÓN AÑADIDA (ESENCIAL PARA EL SIMULADOR) ---
+def calcular_curva_mortalidad(dias_ciclo, total_mortalidad, tipo, porcentaje=50):
+    """Genera un array de mortalidad acumulada según un escenario."""
+    dias_ciclo = int(dias_ciclo)
+    total_mortalidad = float(total_mortalidad)
     
-    tabla_simulada[daily_col] = tabla_simulada[total_col].diff().fillna(tabla_simulada[total_col])
-
-    # Recalcular KPIs para el escenario
-    fases = ['Pre-iniciador', 'Iniciador', 'Engorde', 'Retiro']
-    consumo_por_fase = tabla_simulada.groupby('Fase_Alimento')[daily_col].sum()
-    unidades = [consumo_por_fase.get(f, 0) for f in fases]
-    costos_kg = [st.session_state.val_pre_iniciador, st.session_state.val_iniciador, st.session_state.val_engorde, st.session_state.val_retiro]
-    factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
-    costos = [(u * factor_kg) * c for u, c in zip(unidades, costos_kg)]
-    costo_total_alimento = sum(costos)
-
-    aves_producidas = tabla_simulada['Saldo'].iloc[-1]
-    peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
-    consumo_total_objetivo_ave = tabla_simulada['Cons_Acum_Ajustado'].iloc[-1]
-    kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
-    consumo_total_kg = sum(unidades) * factor_kg
-
-    st.header("2. Resultados de la Simulación")
-    if kilos_totales_producidos > 0 and st.session_state.porcentaje_participacion_alimento > 0:
-        costo_total_lote = costo_total_alimento / (st.session_state.porcentaje_participacion_alimento / 100)
-        costo_total_kilo = costo_total_lote / kilos_totales_producidos
-        conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
+    mortalidad_acumulada = np.zeros(dias_ciclo)
+    
+    if tipo == "Lineal (Uniforme)":
+        mortalidad_acumulada = np.linspace(0, total_mortalidad, dias_ciclo)
+    
+    elif tipo == "Concentrada al Inicio (Semana 1)":
+        dias_concentracion = min(7, dias_ciclo)
+        mortalidad_inicial = total_mortalidad * (porcentaje / 100.0)
+        mortalidad_restante = total_mortalidad - mortalidad_inicial
         
-        costo_map = {
-            'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
-            'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
-        }
-        tabla_simulada['Costo_Kg_Dia'] = tabla_simulada['Fase_Alimento'].map(costo_map)
-        tabla_simulada['Cons_Diario_Ave_gr'] = tabla_simulada['Cons_Acum_Ajustado'].diff().fillna(tabla_simulada['Cons_Acum_Ajustado'].iloc[0])
-        tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
-        tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
-        tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
-        costo_desperdicio = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
-
-        st.subheader("Indicadores de Eficiencia Clave (Simulado)")
-        kpi_cols = st.columns(3)
-        kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
-        kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
-        kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio:,.2f}", help="Costo estimado del alimento consumido por las aves que murieron.")
+        # Curva para la primera semana
+        curva_inicial = np.linspace(0, mortalidad_inicial, dias_concentracion)
+        mortalidad_acumulada[:dias_concentracion] = curva_inicial
         
-        st.markdown("---")
-        st.subheader("Gráficos del Escenario Simulado")
-        col1_graf, col2_graf = st.columns(2)
+        # Curva para el resto del ciclo
+        if dias_ciclo > dias_concentracion:
+            curva_restante = np.linspace(0, mortalidad_restante, dias_ciclo - dias_concentracion)
+            mortalidad_acumulada[dias_concentracion:] = mortalidad_inicial + curva_restante
+            
+    elif tipo == "Concentrada al Final (Última Semana)":
+        dias_concentracion = min(7, dias_ciclo)
+        punto_inicio_final = dias_ciclo - dias_concentracion
+        
+        mortalidad_final_concentrada = total_mortalidad * (porcentaje / 100.0)
+        mortalidad_previa = total_mortalidad - mortalidad_final_concentrada
+        
+        # Curva hasta antes de la última semana
+        if punto_inicio_final > 0:
+            curva_previa = np.linspace(0, mortalidad_previa, punto_inicio_final)
+            mortalidad_acumulada[:punto_inicio_final] = curva_previa
+            
+        # Curva para la última semana
+        curva_final = np.linspace(0, mortalidad_final_concentrada, dias_concentracion)
+        mortalidad_acumulada[punto_inicio_final:] = mortalidad_previa + curva_final
 
-        with col1_graf:
-            fig, ax = plt.subplots()
-            ax.plot(tabla_simulada['Dia'], tabla_simulada['Saldo'], color='orange', label='Saldo de Aves')
-            ax.set_xlabel("Día del Ciclo")
-            ax.set_ylabel("Número de Aves")
-            ax.legend(loc='upper left')
-            ax.grid(True, linestyle='--', alpha=0.6)
-            ax_twin = ax.twinx()
-            ax_twin.bar(tabla_simulada['Dia'], tabla_simulada['Mortalidad_Diaria'], color='red', alpha=0.5, label='Mortalidad Diaria')
-            ax_twin.set_ylabel("Mortalidad Diaria")
-            ax_twin.legend(loc='upper right')
-            fig.suptitle("Curva de Saldo y Mortalidad Diaria")
-            st.pyplot(fig)
-
-        with col2_graf:
-            fig_pie, ax_pie = plt.subplots()
-            costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-            otros_costos_kilo = costo_total_kilo - costo_alimento_kilo
-            sizes = [costo_alimento_kilo, otros_costos_kilo]
-            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Otros Costos\n${sizes[1]:,.2f}"]
-            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
-            ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
-            st.pyplot(fig_pie)
-    else:
-        st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación del alimento son cero.")
-
-except Exception as e:
-    st.error(f"Ocurrió un error inesperado durante la simulación.")
-    st.exception(e)
+    return np.floor(mortalidad_acumulada)
