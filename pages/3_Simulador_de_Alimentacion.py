@@ -1,62 +1,14 @@
-# Contenido ACTUALIZADO para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO para: pages/3_Simulador_de_Alimentacion.py
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import timedelta
 from pathlib import Path
-from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcular_curva_mortalidad, style_kpi_df
+from utils import load_data, reconstruir_tabla_base # Usamos la nueva función
 
-st.set_page_config(page_title="Análisis de Mortalidad", page_icon="💀", layout="wide")
+st.set_page_config(page_title="Simulador de Alimentación", page_icon="🌽", layout="wide")
 
-# --- FUNCIÓN DE CÁLCULO REFACTORIZADA ---
-def calcular_escenario_completo(tabla_base, tipo_mortalidad, porcentaje_curva, mortalidad_objetivo_porc, st_session_state):
-    tabla_escenario = tabla_base.copy()
-    dia_obj = tabla_escenario['Dia'].iloc[-1]
-    total_mortalidad_aves = st_session_state.aves_programadas * (mortalidad_objetivo_porc / 100.0)
-    mortalidad_acum = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, tipo_mortalidad, porcentaje_curva)
-    tabla_escenario['Mortalidad_Acumulada'] = mortalidad_acum
-    tabla_escenario['Saldo'] = st_session_state.aves_programadas - tabla_escenario['Mortalidad_Acumulada']
-    tabla_escenario['Cons_Diario_Ave_gr'] = tabla_escenario['Cons_Acum_Ajustado'].diff().fillna(tabla_escenario['Cons_Acum_Ajustado'].iloc[0])
-    
-    if st_session_state.unidades_calculo == "Kilos":
-        daily_col_name = "Kilos Diarios"
-        tabla_escenario[daily_col_name] = (tabla_escenario['Cons_Diario_Ave_gr'] * tabla_escenario['Saldo']) / 1000
-    else:
-        daily_col_name = "Bultos Diarios"
-        tabla_escenario[daily_col_name] = np.ceil((tabla_escenario['Cons_Diario_Ave_gr'] * tabla_escenario['Saldo']) / 40000)
-
-    consumo_por_fase = tabla_escenario.groupby('Fase_Alimento')[daily_col_name].sum()
-    factor_kg = 1 if st_session_state.unidades_calculo == "Kilos" else 40
-    
-    costos_kg_map = {
-        'Pre-iniciador': st_session_state.val_pre_iniciador, 'Iniciador': st_session_state.val_iniciador,
-        'Engorde': st_session_state.val_engorde, 'Retiro': st_session_state.val_retiro
-    }
-    costo_total_alimento = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index) * factor_kg
-    
-    costo_total_pollitos = st_session_state.aves_programadas * st_session_state.costo_pollito
-    costo_total_otros = st_session_state.aves_programadas * st_session_state.otros_costos_ave
-    costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
-
-    aves_producidas = tabla_escenario['Saldo'].iloc[-1]
-    peso_obj_final = tabla_escenario['Peso_Estimado'].iloc[-1]
-    kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
-    
-    resultados_kpi = {}
-    if kilos_totales_producidos > 0:
-        resultados_kpi = {
-            "mortalidad_objetivo": mortalidad_objetivo_porc,
-            "costo_alimento_kilo": costo_total_alimento / kilos_totales_producidos,
-            "costo_pollito_kilo": costo_total_pollitos / kilos_totales_producidos,
-            "costo_otros_kilo": costo_total_otros / kilos_totales_producidos,
-            "costo_total_por_kilo": costo_total_lote / kilos_totales_producidos,
-        }
-    return resultados_kpi, tabla_escenario
-
-st.title("📊 Análisis Comparativo de Escenarios de Mortalidad")
-st.markdown("Esta página analiza el impacto económico de tres curvas de mortalidad distintas y la sensibilidad al porcentaje de mortalidad total.")
+st.title("🌽 Simulador de Estrategias de Alimentación")
 
 if 'aves_programadas' not in st.session_state or st.session_state.aves_programadas <= 0:
     st.warning("👈 Por favor, ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
@@ -68,187 +20,148 @@ df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
 
+# --- RECONSTRUIR TABLA BASE (USANDO LA FUNCIÓN DE UTILS) ---
+tabla_base_completa = reconstruir_tabla_base(st.session_state, df_referencia, df_coeffs, df_coeffs_15)
+
+if tabla_base_completa is None:
+    st.error("No se pudieron generar los datos base para la simulación.")
+    st.stop()
+
+# =============================================================================
+# --- 1. SIMULADOR DE PLAN DE ALIMENTACIÓN ---
+# =============================================================================
+st.header("1. Simulador de Plan de Alimentación")
+st.write("""
+Aquí puedes ajustar las cantidades de las fases de alimento para encontrar la combinación más económica 
+que te permita alcanzar tu peso objetivo. El modelo asume que el rendimiento biológico (peso y conversión) no cambia.
+""")
+
+# --- Controles interactivos para el plan de alimentación ---
+c1, c2, c3 = st.columns(3)
+with c1:
+    pre_iniciador_sim = st.slider("Gramos Pre-iniciador/ave", 0, 500, st.session_state.pre_iniciador)
+with c2:
+    iniciador_sim = st.slider("Gramos Iniciador/ave", 500, 2000, st.session_state.iniciador)
+with c3:
+    retiro_sim = st.slider("Gramos Retiro/ave", 0, 1000, st.session_state.retiro)
+
 try:
-    # --- PASO 1: RECONSTRUIR LA TABLA BASE ---
-    tabla_base = df_referencia[
-        (df_referencia['RAZA'] == st.session_state.raza_seleccionada) &
-        (df_referencia['SEXO'] == st.session_state.sexo_seleccionado)
-    ].copy()
+    # --- Cálculos para el Plan de Alimentación Simulado ---
+    tabla_sim_alimento = tabla_base_completa.copy()
+    closest_idx = (tabla_sim_alimento['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
+    tabla_sim_alimento = tabla_sim_alimento.loc[:closest_idx].copy()
 
-    if tabla_base.empty:
-        st.warning("No se encontraron datos de referencia.")
-        st.stop()
-
-    tabla_base['Cons_Acum'] = clean_numeric_column(tabla_base['Cons_Acum'])
-    tabla_base['Peso'] = clean_numeric_column(tabla_base['Peso'])
-    factor_ajuste = 1 - (st.session_state.restriccion_programada / 100.0)
-    tabla_base['Cons_Acum_Ajustado'] = tabla_base['Cons_Acum'] * factor_ajuste
-    
-    dias_1_14 = tabla_base['Dia'] <= 14
-    dias_15_adelante = tabla_base['Dia'] >= 15
-    tabla_base.loc[dias_1_14, 'Peso_Estimado'] = calcular_peso_estimado(tabla_base[dias_1_14], df_coeffs_15, st.session_state.raza_seleccionada, st.session_state.sexo_seleccionado)
-    tabla_base.loc[dias_15_adelante, 'Peso_Estimado'] = calcular_peso_estimado(tabla_base[dias_15_adelante], df_coeffs, st.session_state.raza_seleccionada, st.session_state.sexo_seleccionado)
-    tabla_base['Peso_Estimado'] *= (st.session_state.productividad / 100.0)
-
-    closest_idx = (tabla_base['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
-    tabla_base_final = tabla_base.loc[:closest_idx].copy()
-    
-    df_interp = tabla_base_final.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+    df_interp = tabla_sim_alimento.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
     consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
     
-    limite_pre = st.session_state.pre_iniciador
-    limite_ini = st.session_state.pre_iniciador + st.session_state.iniciador
-    limite_ret = consumo_total_objetivo_ave - st.session_state.retiro if st.session_state.retiro > 0 else np.inf
+    # Usar los valores de los sliders para definir las fases
+    limite_pre = pre_iniciador_sim
+    limite_ini = pre_iniciador_sim + iniciador_sim
+    limite_ret = consumo_total_objetivo_ave - retiro_sim if retiro_sim > 0 else np.inf
     conditions = [
-        tabla_base_final['Cons_Acum_Ajustado'] <= limite_pre,
-        tabla_base_final['Cons_Acum_Ajustado'].between(limite_pre, limite_ini, inclusive='right'),
-        tabla_base_final['Cons_Acum_Ajustado'] > limite_ret
+        tabla_sim_alimento['Cons_Acum_Ajustado'] <= limite_pre,
+        tabla_sim_alimento['Cons_Acum_Ajustado'].between(limite_pre, limite_ini, inclusive='right'),
+        tabla_sim_alimento['Cons_Acum_Ajustado'] > limite_ret
     ]
     choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
-    tabla_base_final['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
+    tabla_sim_alimento['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
-    # --- PASO 2: CALCULAR LOS TRES ESCENARIOS PRINCIPALES ---
-    mortalidad_base = st.session_state.mortalidad_objetivo
-    kpis_lineal, tabla_lineal = calcular_escenario_completo(tabla_base_final, "Lineal (Uniforme)", 50, mortalidad_base, st.session_state)
-    kpis_inicio, tabla_inicio = calcular_escenario_completo(tabla_base_final, "Concentrada al Inicio (Semana 1)", 90, mortalidad_base, st.session_state)
-    kpis_final, tabla_final = calcular_escenario_completo(tabla_base_final, "Concentrada al Final (Última Semana)", 90, mortalidad_base, st.session_state)
+    # Calcular costos con el nuevo plan
+    mortalidad_diaria_prom = (st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100)) / len(tabla_sim_alimento)
+    tabla_sim_alimento['Saldo'] = st.session_state.aves_programadas - (tabla_sim_alimento['Dia'] * mortalidad_diaria_prom).apply(np.floor)
+    tabla_sim_alimento['Cons_Diario_Ave_gr'] = tabla_sim_alimento['Cons_Acum_Ajustado'].diff().fillna(tabla_sim_alimento['Cons_Acum_Ajustado'].iloc[0])
+    tabla_sim_alimento['Kilos_Diarios_Lote'] = (tabla_sim_alimento['Cons_Diario_Ave_gr'] * tabla_sim_alimento['Saldo']) / 1000
+    
+    costos_kg_map = {
+        'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
+        'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
+    }
+    consumo_por_fase = tabla_sim_alimento.groupby('Fase_Alimento')['Kilos_Diarios_Lote'].sum()
+    costo_total_alimento_sim = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index)
 
-    st.header("1. Tabla Comparativa de Curvas de Mortalidad")
-    if kpis_lineal and kpis_inicio and kpis_final:
-        comparative_data = {
-            "Concepto": [
-                "Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)",
-                "**COSTO TOTAL POR KILO ($)**"
-            ],
-            "Lineal (Base)": [
-                kpis_lineal["costo_alimento_kilo"], kpis_lineal["costo_pollito_kilo"],
-                kpis_lineal["costo_otros_kilo"], kpis_lineal["costo_total_por_kilo"]
-            ],
-            "Mortalidad Inicial": [
-                kpis_inicio["costo_alimento_kilo"], kpis_inicio["costo_pollito_kilo"],
-                kpis_inicio["costo_otros_kilo"], kpis_inicio["costo_total_por_kilo"]
-            ],
-            "Mortalidad Final": [
-                kpis_final["costo_alimento_kilo"], kpis_final["costo_pollito_kilo"],
-                kpis_final["costo_otros_kilo"], kpis_final["costo_total_por_kilo"]
-            ]
-        }
-        df_comparative = pd.DataFrame(comparative_data).set_index("Concepto")
-        st.dataframe(df_comparative.style.format("${:,.2f}"))
-
-        # --- PASO 3: GRÁFICOS DE CURVAS DE MORTALIDAD ---
-        st.markdown("---")
-        st.header("2. Visualización de Curvas de Mortalidad")
-        col1, col2, col3 = st.columns(3)
-
-        def plot_mortality_curve(ax, data, title):
-            data['Mortalidad_Diaria'] = data['Mortalidad_Acumulada'].diff().fillna(data['Mortalidad_Acumulada'].iloc[0])
-            ax.plot(data['Dia'], data['Saldo'], color='orange', label='Saldo de Aves')
-            ax.set_xlabel("Día")
-            ax.set_ylabel("Número de Aves", color='orange')
-            ax.tick_params(axis='y', labelcolor='orange')
-            ax.grid(True, linestyle='--', alpha=0.4)
-            ax_twin = ax.twinx()
-            ax_twin.bar(data['Dia'], data['Mortalidad_Diaria'], color='red', alpha=0.5, label='Mortalidad Diaria')
-            ax_twin.set_ylabel("Mortalidad Diaria", color='red')
-            ax_twin.tick_params(axis='y', labelcolor='red')
-            ax.set_title(title)
-
-        with col1:
-            fig1, ax1 = plt.subplots()
-            plot_mortality_curve(ax1, tabla_lineal, "Escenario Lineal")
-            st.pyplot(fig1)
-        with col2:
-            fig2, ax2 = plt.subplots()
-            plot_mortality_curve(ax2, tabla_inicio, "Mortalidad Inicial (90% en Sem 1)")
-            st.pyplot(fig2)
-        with col3:
-            fig3, ax3 = plt.subplots()
-            plot_mortality_curve(ax3, tabla_final, "Mortalidad Final (90% en últ. Sem)")
-            st.pyplot(fig3)
-
-        # --- PASO 4: GRÁFICOS DE PASTEL COMPARATIVOS ---
-        st.markdown("---")
-        st.header("3. Comparación de Estructura de Costos por Kilo")
-        col_pie1, col_pie2, col_pie3 = st.columns(3)
-
-        def plot_pie_chart(ax, kpis, title):
-            sizes = [kpis["costo_alimento_kilo"], kpis["costo_pollito_kilo"], kpis["costo_otros_kilo"]]
-            labels = [f"Alimento\n${sizes[0]:,.0f}", f"Pollitos\n${sizes[1]:,.0f}", f"Otros\n${sizes[2]:,.0f}"]
-            colors = ['darkred', 'lightblue', 'lightcoral']
-            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
-            ax.set_title(f"{title}\nCosto Total: ${kpis['costo_total_por_kilo']:,.0f}/Kg")
-
-        with col_pie1:
-            fig_pie1, ax_pie1 = plt.subplots()
-            plot_pie_chart(ax_pie1, kpis_lineal, "Escenario Lineal")
-            st.pyplot(fig_pie1)
-        with col_pie2:
-            fig_pie2, ax_pie2 = plt.subplots()
-            plot_pie_chart(ax_pie2, kpis_inicio, "Mortalidad Inicial")
-            st.pyplot(fig_pie2)
-        with col_pie3:
-            fig_pie3, ax_pie3 = plt.subplots()
-            plot_pie_chart(ax_pie3, kpis_final, "Mortalidad Final")
-            st.pyplot(fig_pie3)
-        
-        # --- PASO 5: ANÁLISIS DE SENSIBILIDAD A LA MORTALIDAD TOTAL ---
-        st.markdown("---")
-        st.header("4. Análisis de Sensibilidad al % de Mortalidad Total")
-        st.write(f"Análisis basado en el escenario de curva **Lineal**, usando la Mortalidad Objetivo de **{st.session_state.mortalidad_objetivo}%** como punto central.")
-
-        # --- CAMBIO: Se aumentó el salto de 50 a 100 gramos ---
-        paso = 100
-        peso_base = st.session_state.peso_objetivo
-        pesos_a_evaluar = [peso_base + i * paso for i in range(-3, 4)]
-        
-        resultados_sensibilidad_peso = []
-        for peso_obj_sens in pesos_a_evaluar:
-            if peso_obj_sens <= 0: continue
-            
-            try:
-                closest_idx_sens = (tabla_base['Peso_Estimado'] - peso_obj_sens).abs().idxmin()
-                tabla_sens = tabla_base.loc[:closest_idx_sens].copy()
-            except ValueError:
-                continue
-
-            # Recalcular todo para este nuevo escenario de peso
-            dias_ciclo_sens = tabla_sens['Dia'].iloc[-1]
-            consumo_total_ave_sens = tabla_sens['Cons_Acum_Ajustado'].iloc[-1]
-            peso_final_real_sens = tabla_sens['Peso_Estimado'].iloc[-1]
-
-            kpis_sens, _ = calcular_escenario_completo(tabla_sens, "Lineal (Uniforme)", 50, mortalidad_base, st.session_state)
-
-            if kpis_sens:
-                kilos_producidos_sens = kpis_sens["kilos_totales_producidos"]
-                consumo_total_kg_sens = kpis_sens["costo_alimento_kilo"] * kilos_producidos_sens
-
-                resultados_sensibilidad_peso.append({
-                    "Peso Objetivo (gr)": int(peso_obj_sens),
-                    "Días de Ciclo": int(dias_ciclo_sens),
-                    "Peso Final Real (gr)": int(peso_final_real_sens),
-                    "Conversión Alimenticia": consumo_total_kg_sens / kilos_producidos_sens if kilos_producidos_sens > 0 else 0,
-                    "Costo Total / Kilo": kpis_sens["costo_total_por_kilo"]
-                })
-
-        if resultados_sensibilidad_peso:
-            df_sensibilidad = pd.DataFrame(resultados_sensibilidad_peso)
-            st.dataframe(
-                df_sensibilidad.style
-                .format({
-                    "Peso Objetivo (gr)": "{:,.0f}",
-                    "Días de Ciclo": "{:,.0f}",
-                    "Peso Final Real (gr)": "{:,.0f}",
-                    "Conversión Alimenticia": "{:,.3f}",
-                    "Costo Total / Kilo": "${:,.2f}"
-                })
-                .background_gradient(cmap='Greens_r', subset=['Costo Total / Kilo'])
-                .set_properties(**{'text-align': 'center'})
-            )
-
-    else:
-        st.warning("No se pudieron calcular los KPIs para la comparación.")
+    # Mostrar KPIs del plan simulado
+    kilos_producidos = (tabla_sim_alimento['Saldo'].iloc[-1] * tabla_sim_alimento['Peso_Estimado'].iloc[-1]) / 1000
+    costo_alimento_kilo_sim = costo_total_alimento_sim / kilos_producidos if kilos_producidos > 0 else 0
+    
+    st.markdown("##### Resultados del Plan Simulado")
+    res1, res2 = st.columns(2)
+    res1.metric("Costo Total del Alimento", f"${costo_total_alimento_sim:,.0f}")
+    res2.metric("Costo del Alimento por Kilo Producido", f"${costo_alimento_kilo_sim:,.2f}")
 
 except Exception as e:
-    st.error("Ocurrió un error inesperado durante la simulación.")
-    st.exception(e)
+    st.error(f"Error en el simulador de alimentación: {e}")
+
+# =============================================================================
+# --- 2. ANÁLISIS DE SENSIBILIDAD AL PESO OBJETIVO ---
+# =============================================================================
+st.markdown("---")
+st.header("2. Análisis de Sensibilidad al Peso Objetivo")
+st.write("""
+Esta tabla muestra cómo cambian los indicadores clave si decides llevar tus aves a un peso de venta diferente. 
+Se usa el plan de alimentación y la mortalidad lineal definidos en la página principal.
+""")
+
+try:
+    resultados_sensibilidad = []
+    peso_base = st.session_state.peso_objetivo
+    paso = 50
+    pesos_a_evaluar = [peso_base + i * paso for i in range(-3, 4)]
+
+    for peso_obj_sens in pesos_a_evaluar:
+        if peso_obj_sens <= 0: continue
+        
+        tabla_sens = tabla_base_completa.copy()
+        
+        # Encontrar el nuevo punto de corte y truncar
+        try:
+            closest_idx_sens = (tabla_sens['Peso_Estimado'] - peso_obj_sens).abs().idxmin()
+            tabla_sens = tabla_sens.loc[:closest_idx_sens].copy()
+        except ValueError:
+            continue # Si el peso objetivo está fuera del rango de la tabla, saltar
+
+        # Recalcular todo para este nuevo escenario de peso
+        dias_ciclo = tabla_sens['Dia'].iloc[-1]
+        
+        consumo_total_ave = tabla_sens['Cons_Acum_Ajustado'].iloc[-1]
+        
+        # Mortalidad y Saldo
+        mortalidad_total_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100)
+        mortalidad_diaria_prom = mortalidad_total_aves / dias_ciclo if dias_ciclo > 0 else 0
+        tabla_sens['Saldo'] = st.session_state.aves_programadas - (tabla_sens['Dia'] * mortalidad_diaria_prom).apply(np.floor)
+        
+        # Consumo y Costo
+        tabla_sens['Cons_Diario_Ave_gr'] = tabla_sens['Cons_Acum_Ajustado'].diff().fillna(tabla_sens['Cons_Acum_Ajustado'].iloc[0])
+        tabla_sens['Kilos_Diarios_Lote'] = (tabla_sens['Cons_Diario_Ave_gr'] * tabla_sens['Saldo']) / 1000
+        consumo_total_kg = tabla_sens['Kilos_Diarios_Lote'].sum()
+        
+        aves_producidas = tabla_sens['Saldo'].iloc[-1]
+        peso_final_real = tabla_sens['Peso_Estimado'].iloc[-1]
+        kilos_producidos = (aves_producidas * peso_final_real) / 1000
+        
+        if kilos_producidos > 0:
+            conversion = consumo_total_kg / kilos_producidos
+            
+            resultados_sensibilidad.append({
+                "Peso Objetivo (gr)": int(peso_obj_sens),
+                "Días de Ciclo": int(dias_ciclo),
+                "Peso Final Real (gr)": int(peso_final_real),
+                "Conversión Alimenticia": conversion,
+                "Consumo / Ave (gr)": int(consumo_total_ave)
+            })
+
+    if resultados_sensibilidad:
+        df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
+        st.dataframe(
+            df_sensibilidad.style
+            .format({
+                "Peso Objetivo (gr)": "{:,.0f}",
+                "Días de Ciclo": "{:,.0f}",
+                "Peso Final Real (gr)": "{:,.0f}",
+                "Conversión Alimenticia": "{:,.3f}",
+                "Consumo / Ave (gr)": "{:,.0f}"
+            })
+            .background_gradient(cmap='Greens_r', subset=['Conversión Alimenticia'])
+            .set_properties(**{'text-align': 'center'})
+        )
+except Exception as e:
+    st.error(f"Error en el análisis de sensibilidad: {e}")
