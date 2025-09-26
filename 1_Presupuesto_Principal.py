@@ -1,30 +1,16 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Sep 22 10:43:19 2025
-@author: juan.leyton
-"""
+# Contenido FINAL para: APP_Presupuesto.py
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from PIL import Image
 from datetime import date, timedelta
 from pathlib import Path
 import matplotlib.pyplot as plt
 from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df
 
-# --- CONFIGURACIÓN DE LA PÁGINA (Debe ser el primer comando de Streamlit) ---
-st.set_page_config(
-    page_title="Presupuesto Avícola",
-    page_icon="🐔",
-    layout="wide",
-)
+st.set_page_config(page_title="Presupuesto Avícola", page_icon="🐔", layout="wide")
 
-# --- DEFINIR RUTA BASE (Buena práctica) ---
 BASE_DIR = Path(__file__).resolve().parent
-
-# --- CARGA DE DATOS ---
-# Se asume que las funciones están en utils.py
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
@@ -35,15 +21,16 @@ df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
 
 st.sidebar.header("1. Valores de Entrada")
 try:
+    from PIL import Image
     logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
     st.sidebar.image(logo, width=150)
-except FileNotFoundError:
+except (FileNotFoundError, ImportError):
     st.sidebar.warning("Logo no encontrado.")
 
 # --- Guardar todas las entradas en st.session_state para compartirlas con otras páginas ---
 st.sidebar.subheader("Datos del Lote")
 st.session_state.fecha_llegada = st.sidebar.date_input("Fecha de llegada", date.today())
-st.session_state.aves_programadas = st.sidebar.number_input("# Aves Programadas", 0, value=10000, step=1000, format="%d")
+st.session_state.aves_programadas = st.sidebar.number_input("# Aves Programadas", 0, value=10000, step=1000)
 
 st.sidebar.subheader("Línea Genética")
 razas = sorted(df_referencia['RAZA'].unique()) if df_referencia is not None else ["ROSS 308 AP", "COBB", "HUBBARD", "ROSS"]
@@ -52,7 +39,7 @@ st.session_state.raza_seleccionada = st.sidebar.selectbox("RAZA", razas)
 st.session_state.sexo_seleccionado = st.sidebar.selectbox("SEXO", sexos)
 
 st.sidebar.subheader("Objetivos del Lote")
-st.session_state.peso_objetivo = st.sidebar.number_input("Peso Objetivo (gramos)", 0, value=2500, step=50, format="%d")
+st.session_state.peso_objetivo = st.sidebar.number_input("Peso Objetivo (gramos)", 0, value=2500, step=50)
 st.session_state.mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo %", 0.0, 100.0, 5.0, 0.5, format="%.2f")
 
 st.sidebar.subheader("Condiciones de Granja")
@@ -65,20 +52,20 @@ st.sidebar.subheader("Programa de Alimentación")
 restriccion_map = {"ALTA >2000 msnm": 20, "MEDIA <2000 y >1000 msnm": 10, "BAJA < 1000 msnm": 0}
 max_restriccion = restriccion_map[st.session_state.asnm]
 st.sidebar.info(f"Recomendación: Máxima restricción del {max_restriccion}%.")
-st.session_state.restriccion_programada = st.sidebar.number_input("% Restricción Programado", 0, 100, max_restriccion, 1, format="%d")
+st.session_state.restriccion_programada = st.sidebar.number_input("% Restricción Programado", 0, 100, max_restriccion, 1)
 if st.session_state.restriccion_programada > max_restriccion:
     st.sidebar.warning(f"Advertencia: La restricción supera el {max_restriccion}% recomendado.")
-st.session_state.pre_iniciador = st.sidebar.number_input("Pre-iniciador (gr/ave)", 0, 300, 150, 10, format="%d")
-st.session_state.iniciador = st.sidebar.number_input("Iniciador (gr/ave)", 1, 2000, 1200, 10, format="%d")
-st.session_state.retiro = st.sidebar.number_input("Retiro (gr/ave)", 0, 2000, 500, 10, format="%d")
+st.session_state.pre_iniciador = st.sidebar.number_input("Pre-iniciador (gr/ave)", 0, 300, 150, 10)
+st.session_state.iniciador = st.sidebar.number_input("Iniciador (gr/ave)", 1, 2000, 1200, 10)
+st.session_state.retiro = st.sidebar.number_input("Retiro (gr/ave)", 0, 2000, 500, 10)
 st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 
 st.sidebar.subheader("Unidades y Costos")
 st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo", ["Kilos", "Bultos x 40 Kilos"])
-st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 5200.0, 2200.00, format="%.2f")
-st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2200.00, format="%.2f")
-st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2200.00, format="%.2f")
-st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2200.00, format="%.2f")
+st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
+st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
+st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
+st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
 st.session_state.porcentaje_participacion_alimento = st.sidebar.number_input("Participación Alimento en Costo Total (%)", 0.0, 100.0, 65.0, 0.01, format="%.2f")
 
 # =============================================================================
@@ -124,7 +111,8 @@ try:
     closest_idx = (tabla_filtrada['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
     tabla_filtrada = tabla_filtrada.loc[:closest_idx].copy()
     
-    consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')['Peso_Estimado'], tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')['Cons_Acum_Ajustado'])
+    df_interp = tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+    consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
     
     limite_pre = st.session_state.pre_iniciador
     limite_ini = st.session_state.pre_iniciador + st.session_state.iniciador
@@ -137,10 +125,7 @@ try:
     choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
     tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
 
-    # --- CAMBIO CLAVE: Guardamos la tabla 'limpia' ANTES de calcular la mortalidad ---
-    st.session_state['tabla_base_calculada'] = tabla_filtrada.copy()
-
-    # 2. AHORA, SE CALCULAN LOS DATOS DE MORTALIDAD Y CONSUMO TOTAL (SOLO PARA ESTA PÁGINA)
+    # 2. CÁLCULOS DEPENDIENTES DE MORTALIDAD (para la visualización en esta página)
     dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
     total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
     mortalidad_diaria = total_mortalidad_aves / dia_obj if dia_obj > 0 else 0
@@ -235,9 +220,9 @@ try:
             st.dataframe(style_kpi_df(df_kpi.iloc[5:]), use_container_width=True)
 
         st.markdown("---")
+        st.subheader("Gráficos de Resultados")
         col1_graf, col2_graf = st.columns(2)
         with col1_graf:
-            st.subheader("Gráfico de Crecimiento")
             fig, ax = plt.subplots()
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
             ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
@@ -245,16 +230,16 @@ try:
             ax.legend()
             ax.set_xlabel("Día del Ciclo")
             ax.set_ylabel("Peso (gramos)")
+            ax.set_title("Gráfico de Crecimiento")
             ax.grid(True, linestyle='--', alpha=0.6)
             st.pyplot(fig)
         with col2_graf:
-            st.subheader("Participación de Costos")
             costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
             fig_pie, ax_pie = plt.subplots()
             sizes = [costo_alimento_kilo, costo_total_kilo - costo_alimento_kilo]
             labels = [f"Alimento\n${sizes[0]:,.2f}", f"Otros Costos\n${sizes[1]:,.2f}"]
             ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
-            ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
+            ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
             st.pyplot(fig_pie)
     else:
         st.warning("No se pueden calcular KPIs: kilos producidos o participación de alimento son cero.")
@@ -267,6 +252,6 @@ finally:
     st.markdown("---")
     st.markdown("""
     <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
-    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
+    <b>Nota de Responsabilidad:</b> ...
     </div>
     """, unsafe_allow_html=True)
