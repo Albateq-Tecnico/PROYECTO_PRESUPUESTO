@@ -30,49 +30,38 @@ if tipo_escenario != "Lineal (Uniforme)":
     porcentaje_escenario = st.slider(f"Porcentaje de la mortalidad total a concentrar (%):", 0, 100, 50, 5, key="sim_porcentaje")
 
 try:
-    # --- LÓGICA DE SIMULACIÓN REESTRUCTURADA ---
-
     # 1. PREPARAR DATOS BASE
     tabla_simulada = st.session_state.tabla_base_calculada.copy()
     dia_obj = tabla_simulada['Dia'].iloc[-1]
     
-    # 2. GENERAR LA NUEVA CURVA DE MORTALIDAD Y EL NUEVO SALDO
+    # 2. GENERAR LA NUEVA CURVA DE MORTALIDAD
     total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
     mortalidad_acum_simulada = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, tipo_escenario, porcentaje_escenario)
     
-    # Se crea como una Serie de Pandas separada para asegurar que es un objeto nuevo
-    saldo_nuevo = pd.Series(st.session_state.aves_programadas - mortalidad_acum_simulada, name="Saldo")
-
-    # 3. RECALCULAR EL CONSUMO DEL LOTE EXCLUSIVAMENTE CON EL NUEVO SALDO
-    consumo_acum_ave = tabla_simulada['Cons_Acum_Ajustado']
+    # 3. APLICAR LA NUEVA CURVA Y RECALCULAR COLUMNAS DEPENDIENTES
+    tabla_simulada['Mortalidad_Acumulada'] = mortalidad_acum_simulada
+    tabla_simulada['Saldo'] = st.session_state.aves_programadas - tabla_simulada['Mortalidad_Acumulada']
     
     if st.session_state.unidades_calculo == "Kilos":
         daily_col_name = "Kilos Diarios"
-        consumo_total_lote = (consumo_acum_ave * saldo_nuevo) / 1000
+        total_consumo_lote = (tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 1000
     else:
         daily_col_name = "Bultos Diarios"
-        consumo_total_lote = np.ceil((consumo_acum_ave * saldo_nuevo) / 40000)
+        total_consumo_lote = np.ceil((tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 40000)
 
-    # El consumo diario del lote AHORA SÍ depende directamente del nuevo saldo
-    consumo_diario_lote = consumo_total_lote.diff().fillna(consumo_total_lote.iloc[0])
+    tabla_simulada[daily_col_name] = total_consumo_lote.diff().fillna(total_consumo_lote.iloc[0])
     
-    # Actualizamos el DataFrame principal con las nuevas columnas calculadas
-    tabla_simulada['Saldo'] = saldo_nuevo
-    tabla_simulada[daily_col_name] = consumo_diario_lote
-    
-    # 4. RECALCULAR TODOS LOS KPIs ECONÓMICOS A PARTIR DE CERO
+    # 4. RECALCULAR KPIS ECONÓMICOS
     consumo_por_fase = tabla_simulada.groupby('Fase_Alimento')[daily_col_name].sum()
     unidades_por_fase = [consumo_por_fase.get(f, 0) for f in ['Pre-iniciador', 'Iniciador', 'Engorde', 'Retiro']]
     factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
+    consumo_total_kg = sum(unidades_por_fase) * factor_kg
     
     costos_kg_map = {
         'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
         'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
     }
-    
-    # Se calcula el costo total sumando el costo de cada fase
     costo_total_alimento = sum(consumo_por_fase.get(f, 0) * costos_kg_map.get(f, 0) for f in consumo_por_fase.index) * factor_kg
-    consumo_total_kg = sum(unidades_por_fase) * factor_kg
     
     aves_producidas = tabla_simulada['Saldo'].iloc[-1]
     peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
@@ -84,6 +73,7 @@ try:
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
         
+        # --- CORRECCIÓN: La columna 'Mortalidad_Acumulada' ahora existe ---
         tabla_simulada['Costo_Kg_Dia'] = tabla_simulada['Fase_Alimento'].map(costos_kg_map)
         tabla_simulada['Cons_Diario_Ave_gr'] = tabla_simulada['Cons_Acum_Ajustado'].diff().fillna(tabla_simulada['Cons_Acum_Ajustado'].iloc[0])
         tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
