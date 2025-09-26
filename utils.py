@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# NOTA: Se eliminó la línea "from utils import..." que causaba el error.
+
 @st.cache_data
 def load_data(file_path):
     """Carga datos desde un archivo CSV de forma robusta."""
@@ -37,7 +39,6 @@ def calcular_peso_estimado(data, coeffs_df, raza, sexo):
     st.warning(f"No se encontraron coeficientes de peso para {raza} - {sexo}. El peso estimado será 0.")
     return pd.Series(0, index=data.index)
 
-# --- FUNCIÓN OPTIMIZADA ---
 def style_kpi_df(df):
     """Aplica formato condicional a un DataFrame de KPIs de forma eficiente."""
     def formatter(val, metric_name):
@@ -49,7 +50,6 @@ def style_kpi_df(df):
     df_styled['Valor'] = [formatter(val, name) for name, val in df['Valor'].items()]
     return df_styled
 
-# --- FUNCIÓN AÑADIDA (ESENCIAL PARA EL SIMULADOR) ---
 def calcular_curva_mortalidad(dias_ciclo, total_mortalidad, tipo, porcentaje=50):
     """Genera un array de mortalidad acumulada según un escenario."""
     dias_ciclo = int(dias_ciclo)
@@ -65,11 +65,9 @@ def calcular_curva_mortalidad(dias_ciclo, total_mortalidad, tipo, porcentaje=50)
         mortalidad_inicial = total_mortalidad * (porcentaje / 100.0)
         mortalidad_restante = total_mortalidad - mortalidad_inicial
         
-        # Curva para la primera semana
         curva_inicial = np.linspace(0, mortalidad_inicial, dias_concentracion)
         mortalidad_acumulada[:dias_concentracion] = curva_inicial
         
-        # Curva para el resto del ciclo
         if dias_ciclo > dias_concentracion:
             curva_restante = np.linspace(0, mortalidad_restante, dias_ciclo - dias_concentracion)
             mortalidad_acumulada[dias_concentracion:] = mortalidad_inicial + curva_restante
@@ -81,12 +79,10 @@ def calcular_curva_mortalidad(dias_ciclo, total_mortalidad, tipo, porcentaje=50)
         mortalidad_final_concentrada = total_mortalidad * (porcentaje / 100.0)
         mortalidad_previa = total_mortalidad - mortalidad_final_concentrada
         
-        # Curva hasta antes de la última semana
         if punto_inicio_final > 0:
             curva_previa = np.linspace(0, mortalidad_previa, punto_inicio_final)
             mortalidad_acumulada[:punto_inicio_final] = curva_previa
             
-        # Curva para la última semana
         curva_final = np.linspace(0, mortalidad_final_concentrada, dias_concentracion)
         mortalidad_acumulada[punto_inicio_final:] = mortalidad_previa + curva_final
 
