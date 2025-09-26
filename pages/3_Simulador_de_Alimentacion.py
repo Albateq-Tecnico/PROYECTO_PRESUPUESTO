@@ -104,7 +104,7 @@ Se usa el plan de alimentación y la mortalidad lineal definidos en la página p
 try:
     resultados_sensibilidad = []
     peso_base = st.session_state.peso_objetivo
-    paso = 50
+    paso = 100
     pesos_a_evaluar = [peso_base + i * paso for i in range(-3, 4)]
 
     for peso_obj_sens in pesos_a_evaluar:
