@@ -1,10 +1,10 @@
-# Contenido corregido para: pages/2_Simulador_de_Mortalidad.py
+# Contenido completo y corregido para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt  # <-- CORRECCIÓN: Importación añadida
+import matplotlib.pyplot as plt
 from datetime import timedelta
 from utils import calcular_curva_mortalidad, style_kpi_df
 
@@ -17,7 +17,7 @@ st.set_page_config(
 st.title("💀 Simulador de Escenarios de Mortalidad")
 st.markdown("""
 Esta herramienta te permite modelar cómo diferentes curvas de mortalidad afectan los indicadores clave de tu presupuesto. 
-Los parámetros base (aves, peso objetivo, etc.) se toman de los definidos en la página principal.
+Los parámetros base se toman de los definidos en la página 'Presupuesto Principal'.
 """)
 
 if 'tabla_base_calculada' not in st.session_state or st.session_state.tabla_base_calculada.empty:
@@ -45,6 +45,8 @@ try:
     
     dia_obj = tabla_simulada['Dia'].iloc[-1]
     
+    # --- LÓGICA DE SIMULACIÓN ---
+    # 1. Calcular la nueva curva de mortalidad
     total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
     mortalidad_acum_simulada = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, tipo_escenario, porcentaje_escenario)
     
@@ -52,9 +54,11 @@ try:
         mortalidad_acum_simulada = np.resize(mortalidad_acum_simulada, len(tabla_simulada))
         mortalidad_acum_simulada[-1] = total_mortalidad_aves 
 
+    # 2. Aplicar la nueva curva y recalcular el Saldo
     tabla_simulada['Mortalidad_Acumulada'] = mortalidad_acum_simulada
     tabla_simulada['Saldo'] = st.session_state.aves_programadas - tabla_simulada['Mortalidad_Acumulada']
     
+    # 3. --- CORRECCIÓN CLAVE: Recalcular el consumo total y diario CON EL NUEVO SALDO ---
     if st.session_state.unidades_calculo == "Kilos":
         total_col, daily_col = "Kilos Totales", "Kilos Diarios"
         tabla_simulada[total_col] = (tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 1000
@@ -64,10 +68,9 @@ try:
     
     tabla_simulada[daily_col] = tabla_simulada[total_col].diff().fillna(tabla_simulada[total_col])
 
-    # Recalcular KPIs para el escenario
-    fases = ['Pre-iniciador', 'Iniciador', 'Engorde', 'Retiro']
+    # 4. Recalcular TODOS los KPIs económicos a partir de los nuevos valores
     consumo_por_fase = tabla_simulada.groupby('Fase_Alimento')[daily_col].sum()
-    unidades = [consumo_por_fase.get(f, 0) for f in fases]
+    unidades = [consumo_por_fase.get(f, 0) for f in ['Pre-iniciador', 'Iniciador', 'Engorde', 'Retiro']]
     costos_kg = [st.session_state.val_pre_iniciador, st.session_state.val_iniciador, st.session_state.val_engorde, st.session_state.val_retiro]
     factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
     costos = [(u * factor_kg) * c for u, c in zip(unidades, costos_kg)]
@@ -75,7 +78,6 @@ try:
 
     aves_producidas = tabla_simulada['Saldo'].iloc[-1]
     peso_obj_final = tabla_simulada['Peso_Estimado'].iloc[-1]
-    consumo_total_objetivo_ave = tabla_simulada['Cons_Acum_Ajustado'].iloc[-1]
     kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
     consumo_total_kg = sum(unidades) * factor_kg
 
