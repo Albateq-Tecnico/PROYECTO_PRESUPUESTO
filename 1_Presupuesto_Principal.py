@@ -11,6 +11,7 @@ from PIL import Image
 from datetime import date, timedelta
 from pathlib import Path
 import matplotlib.pyplot as plt
+from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df
 
 # --- CONFIGURACIÓN DE LA PÁGINA (Debe ser el primer comando de Streamlit) ---
 st.set_page_config(
@@ -22,52 +23,8 @@ st.set_page_config(
 # --- DEFINIR RUTA BASE (Buena práctica) ---
 BASE_DIR = Path(__file__).resolve().parent
 
-# =============================================================================
-# --- FUNCIONES AUXILIARES ---
-# =============================================================================
-
-@st.cache_data
-def load_data(file_path):
-    """Carga datos desde un archivo CSV de forma robusta."""
-    try:
-        return pd.read_csv(file_path)
-    except FileNotFoundError:
-        st.error(f"Error Crítico: No se encontró el archivo de datos en: {file_path}")
-        return None
-    except Exception as e:
-        st.error(f"Error Crítico al cargar el archivo {file_path.name}: {e}")
-        return None
-
-def clean_numeric_column(series):
-    """Convierte una columna a tipo numérico, manejando comas como decimales."""
-    if series.dtype == 'object':
-        return pd.to_numeric(series.str.replace(',', '.', regex=False), errors='coerce')
-    return series
-
-def calcular_peso_estimado(data, coeffs_df, raza, sexo):
-    """Calcula el peso estimado usando coeficientes de regresión polinomial."""
-    if coeffs_df is None: return pd.Series(0, index=data.index)
-    coeffs_seleccion = coeffs_df[(coeffs_df['RAZA'] == raza) & (coeffs_df['SEXO'] == sexo)]
-    if not coeffs_seleccion.empty:
-        params = coeffs_seleccion.iloc[0]
-        x = data['Cons_Acum_Ajustado']
-        return (params['Intercept'] + params['Coef_1'] * x + params['Coef_2'] * (x**2) + 
-                params['Coef_3'] * (x**3) + params['Coef_4'] * (x**4))
-    st.warning(f"No se encontraron coeficientes de peso para {raza} - {sexo}.")
-    return pd.Series(0, index=data.index)
-
-def style_kpi_df(df):
-    """Aplica formato condicional a un DataFrame de KPIs de forma eficiente."""
-    def formatter(val, metric_name):
-        if "Conversión" in metric_name: return f"{val:,.3f}"
-        if "($)" in metric_name: return f"${val:,.2f}"
-        return f"{val:,.0f}"
-    
-    df_styled = df.copy()
-    df_styled['Valor'] = [formatter(val, name) for name, val in df['Valor'].items()]
-    return df_styled
-
 # --- CARGA DE DATOS ---
+# Se asume que las funciones están en utils.py
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
@@ -83,7 +40,7 @@ try:
 except FileNotFoundError:
     st.sidebar.warning("Logo no encontrado.")
 
-# --- CORRECCIÓN CLAVE: Guardar todas las entradas en st.session_state ---
+# --- Guardar todas las entradas en st.session_state para compartirlas con otras páginas ---
 st.sidebar.subheader("Datos del Lote")
 st.session_state.fecha_llegada = st.sidebar.date_input("Fecha de llegada", date.today())
 st.session_state.aves_programadas = st.sidebar.number_input("# Aves Programadas", 0, value=10000, step=1000, format="%d")
@@ -118,10 +75,10 @@ st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 
 st.sidebar.subheader("Unidades y Costos")
 st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo", ["Kilos", "Bultos x 40 Kilos"])
-st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 5000.0, 2200.00, format="%.2f")
-st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5000.0, 2200.00, format="%.2f")
-st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5000.0, 2200.00, format="%.2f")
-st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5000.0, 2200.00, format="%.2f")
+st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
+st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
+st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
+st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 2200.0, 0.01, format="%.2f")
 st.session_state.porcentaje_participacion_alimento = st.sidebar.number_input("Participación Alimento en Costo Total (%)", 0.0, 100.0, 65.0, 0.01, format="%.2f")
 
 # =============================================================================
@@ -140,7 +97,7 @@ if st.session_state.aves_programadas <= 0 or st.session_state.peso_objetivo <= 0
     st.stop()
 
 try:
-    # 1. FILTRAR DATOS
+    # 1. FILTRAR DATOS Y CÁLCULOS BASE (INDEPENDIENTES DE MORTALIDAD)
     tabla_filtrada = df_referencia[
         (df_referencia['RAZA'] == st.session_state.raza_seleccionada) &
         (df_referencia['SEXO'] == st.session_state.sexo_seleccionado)
@@ -155,7 +112,6 @@ try:
     tabla_filtrada['Cons_Acum'] = clean_numeric_column(tabla_filtrada['Cons_Acum'])
     tabla_filtrada['Peso'] = clean_numeric_column(tabla_filtrada['Peso'])
 
-    # 2. CÁLCULOS SECUENCIALES
     factor_ajuste = 1 - (st.session_state.restriccion_programada / 100.0)
     tabla_filtrada['Cons_Acum_Ajustado'] = tabla_filtrada['Cons_Acum'] * factor_ajuste
 
@@ -166,16 +122,9 @@ try:
     tabla_filtrada['Peso_Estimado'] *= (st.session_state.productividad / 100.0)
 
     closest_idx = (tabla_filtrada['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
-    dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
-    peso_obj_final = tabla_filtrada.loc[closest_idx, 'Peso_Estimado']
-    
     tabla_filtrada = tabla_filtrada.loc[:closest_idx].copy()
     
-    # --- CAMBIO CLAVE: Guardar la tabla base para que el simulador la use ---
-    st.session_state['tabla_base_calculada'] = tabla_filtrada
-
-    df_interp = tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
-    consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
+    consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')['Peso_Estimado'], tabla_filtrada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')['Cons_Acum_Ajustado'])
     
     limite_pre = st.session_state.pre_iniciador
     limite_ini = st.session_state.pre_iniciador + st.session_state.iniciador
@@ -187,12 +136,17 @@ try:
     ]
     choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
     tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
-    
+
+    # --- CAMBIO CLAVE: Guardamos la tabla 'limpia' ANTES de calcular la mortalidad ---
+    st.session_state['tabla_base_calculada'] = tabla_filtrada.copy()
+
+    # 2. AHORA, SE CALCULAN LOS DATOS DE MORTALIDAD Y CONSUMO TOTAL (SOLO PARA ESTA PÁGINA)
+    dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
     total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
     mortalidad_diaria = total_mortalidad_aves / dia_obj if dia_obj > 0 else 0
     tabla_filtrada['Mortalidad_Acumulada'] = (tabla_filtrada['Dia'] * mortalidad_diaria).apply(np.floor)
     tabla_filtrada['Saldo'] = st.session_state.aves_programadas - tabla_filtrada['Mortalidad_Acumulada']
-
+    
     tabla_filtrada['Fecha'] = tabla_filtrada['Dia'].apply(lambda d: st.session_state.fecha_llegada + timedelta(days=d - 1))
     
     if st.session_state.unidades_calculo == "Kilos":
@@ -232,8 +186,9 @@ try:
 
     st.subheader("Indicadores Clave de Desempeño (KPIs)")
     costo_total_alimento = sum(costos)
-    aves_producidas = tabla_filtrada.loc[closest_idx, 'Saldo']
-    kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000
+    aves_producidas = tabla_filtrada['Saldo'].iloc[-1]
+    peso_obj_final = tabla_filtrada['Peso_Estimado'].iloc[-1]
+    kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
     consumo_total_kg = sum(unidades) * factor_kg
     
     if kilos_totales_producidos > 0 and st.session_state.porcentaje_participacion_alimento > 0:
@@ -241,7 +196,6 @@ try:
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
 
-        # --- MEJORA: Cálculo de Costo por Mortalidad más preciso ---
         costo_map = {
             'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
             'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
@@ -313,9 +267,6 @@ finally:
     st.markdown("---")
     st.markdown("""
     <div style="background-color: #ffcccc; padding: 10px; border-radius: 5px;">
-    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
-    </div>
-    <div style="text-align: center; margin-top: 15px;">
-    Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
+    <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
     </div>
     """, unsafe_allow_html=True)
