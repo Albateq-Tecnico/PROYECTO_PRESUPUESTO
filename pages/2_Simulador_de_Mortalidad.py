@@ -1,4 +1,4 @@
-# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO y CORREGIDO para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
@@ -115,23 +115,23 @@ try:
         costo_total_kilo = costo_total_lote / kilos_totales_producidos
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
         
+        # --- LÍNEAS RESTAURADAS PARA EL CÁLCULO DE COSTO POR MORTALIDAD ---
         tabla_simulada['Costo_Kg_Dia'] = tabla_simulada['Fase_Alimento'].map(costos_kg_map)
         tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
         tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
         tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
         costo_alimento_desperdiciado = (tabla_simulada['Mortalidad_Diaria'] * tabla_simulada['Costo_Alimento_Acum_Ave']).sum()
-
+        
         aves_muertas_total = st.session_state.aves_programadas - aves_producidas
         costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
         costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
-
+        
         st.subheader("Indicadores de Eficiencia Clave (Simulado)")
         kpi_cols = st.columns(3)
         kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
         kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
         kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
         
-        # --- CAMBIO: Nueva tabla de desglose de costos ---
         st.markdown("---")
         st.subheader("Desglose del Costo por Kilo Producido")
 
@@ -180,5 +180,5 @@ try:
         st.warning("No se pueden calcular los KPIs: los kilos producidos son cero.")
 
 except Exception as e:
-    st.error("Ocurrió un error inesperado durante la simulación.")
+    st.error(f"Ocurrió un error inesperado durante la simulación.")
     st.exception(e)
