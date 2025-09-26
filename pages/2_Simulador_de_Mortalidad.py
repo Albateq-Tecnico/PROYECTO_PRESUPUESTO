@@ -39,6 +39,9 @@ if tipo_escenario != "Lineal (Uniforme)":
         f"Porcentaje de la mortalidad total a concentrar (%):", 0, 100, 50, 5, key="sim_porcentaje"
     )
 
+# --- AÑADE ESTA LÍNEA AQUÍ ---
+st.info(f"DEBUG: Escenario seleccionado -> {tipo_escenario} @ {porcentaje_escenario}%")
+
 try:
     # Copiar la tabla base desde la sesión para no modificarla
     tabla_simulada = st.session_state.tabla_base_calculada.copy()
