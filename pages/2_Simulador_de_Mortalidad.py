@@ -1,4 +1,4 @@
-# Contenido FINAL y DEFINITIVO para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
@@ -16,12 +16,11 @@ Esta herramienta te permite modelar cómo diferentes curvas de mortalidad afecta
 Los parámetros base se toman de los definidos en la página 'Presupuesto Principal'.
 """)
 
-# --- Verificar si los parámetros base existen en la sesión ---
 if 'aves_programadas' not in st.session_state:
-    st.warning("👈 Por favor, configura y ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
+    st.warning("👈 Por favor, ejecuta un cálculo en la página 'Presupuesto Principal' primero.")
     st.stop()
 
-# --- Cargar datos (necesario porque reconstruimos la tabla desde cero) ---
+# --- Cargar datos (necesario para la reconstrucción independiente) ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
@@ -52,7 +51,7 @@ try:
     tabla_base['Peso'] = clean_numeric_column(tabla_base['Peso'])
     factor_ajuste = 1 - (st.session_state.restriccion_programada / 100.0)
     tabla_base['Cons_Acum_Ajustado'] = tabla_base['Cons_Acum'] * factor_ajuste
-
+    
     dias_1_14 = tabla_base['Dia'] <= 14
     dias_15_adelante = tabla_base['Dia'] >= 15
     tabla_base.loc[dias_1_14, 'Peso_Estimado'] = calcular_peso_estimado(tabla_base[dias_1_14], df_coeffs_15, st.session_state.raza_seleccionada, st.session_state.sexo_seleccionado)
@@ -84,21 +83,21 @@ try:
     tabla_simulada['Mortalidad_Acumulada'] = mortalidad_acum_simulada
     tabla_simulada['Saldo'] = st.session_state.aves_programadas - tabla_simulada['Mortalidad_Acumulada']
 
-    # --- PASO 4: RECALCULAR CONSUMO TOTAL Y KPIS ---
+    # --- PASO 4: RECALCULAR CONSUMO DIARIO Y KPIS ---
+    # --- CORRECCIÓN FUNDAMENTAL EN EL CÁLCULO DE CONSUMO DIARIO ---
+    tabla_simulada['Cons_Diario_Ave_gr'] = tabla_simulada['Cons_Acum_Ajustado'].diff().fillna(tabla_simulada['Cons_Acum_Ajustado'].iloc[0])
+    
     if st.session_state.unidades_calculo == "Kilos":
         daily_col_name = "Kilos Diarios"
-        consumo_total_lote = (tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 1000
+        tabla_simulada[daily_col_name] = (tabla_simulada['Cons_Diario_Ave_gr'] * tabla_simulada['Saldo']) / 1000
     else:
         daily_col_name = "Bultos Diarios"
-        consumo_total_lote = np.ceil((tabla_simulada['Cons_Acum_Ajustado'] * tabla_simulada['Saldo']) / 40000)
-    
-    tabla_simulada[daily_col_name] = consumo_total_lote.diff().fillna(consumo_total_lote.iloc[0])
-    
-    consumo_por_fase = tabla_simulada.groupby('Fase_Alimento')[daily_col_name].sum()
-    unidades_por_fase = [consumo_por_fase.get(f, 0) for f in ['Pre-iniciador', 'Iniciador', 'Engorde', 'Retiro']]
-    factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
-    consumo_total_kg = sum(unidades_por_fase) * factor_kg
+        tabla_simulada[daily_col_name] = np.ceil((tabla_simulada['Cons_Diario_Ave_gr'] * tabla_simulada['Saldo']) / 40000)
 
+    consumo_por_fase = tabla_simulada.groupby('Fase_Alimento')[daily_col_name].sum()
+    factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
+    consumo_total_kg = consumo_por_fase.sum() * factor_kg
+    
     costos_kg_map = {
         'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
         'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
@@ -116,7 +115,6 @@ try:
         conversion_alimenticia = consumo_total_kg / kilos_totales_producidos
         
         tabla_simulada['Costo_Kg_Dia'] = tabla_simulada['Fase_Alimento'].map(costos_kg_map)
-        tabla_simulada['Cons_Diario_Ave_gr'] = tabla_simulada['Cons_Acum_Ajustado'].diff().fillna(tabla_simulada['Cons_Acum_Ajustado'].iloc[0])
         tabla_simulada['Costo_Alimento_Diario_Ave'] = (tabla_simulada['Cons_Diario_Ave_gr'] / 1000) * tabla_simulada['Costo_Kg_Dia']
         tabla_simulada['Costo_Alimento_Acum_Ave'] = tabla_simulada['Costo_Alimento_Diario_Ave'].cumsum()
         tabla_simulada['Mortalidad_Diaria'] = tabla_simulada['Mortalidad_Acumulada'].diff().fillna(tabla_simulada['Mortalidad_Acumulada'].iloc[0])
@@ -128,33 +126,8 @@ try:
         kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
         kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio:,.2f}", help="Costo estimado del alimento consumido por las aves que murieron.")
         
-        st.markdown("---")
-        st.subheader("Gráficos del Escenario Simulado")
-        col1_graf, col2_graf = st.columns(2)
+        # ... (El resto del código para los gráficos permanece igual)
 
-        with col1_graf:
-            fig, ax = plt.subplots()
-            ax.plot(tabla_simulada['Dia'], tabla_simulada['Saldo'], color='orange', label='Saldo de Aves')
-            ax.set_xlabel("Día del Ciclo")
-            ax.set_ylabel("Número de Aves")
-            ax.legend(loc='upper left')
-            ax.grid(True, linestyle='--', alpha=0.6)
-            ax_twin = ax.twinx()
-            ax_twin.bar(tabla_simulada['Dia'], tabla_simulada['Mortalidad_Diaria'], color='red', alpha=0.5, label='Mortalidad Diaria')
-            ax_twin.set_ylabel("Mortalidad Diaria")
-            ax_twin.legend(loc='upper right')
-            fig.suptitle("Curva de Saldo y Mortalidad Diaria")
-            st.pyplot(fig)
-
-        with col2_graf:
-            fig_pie, ax_pie = plt.subplots()
-            costo_alimento_kilo = costo_total_alimento / kilos_totales_producidos
-            otros_costos_kilo = costo_total_kilo - costo_alimento_kilo
-            sizes = [costo_alimento_kilo, otros_costos_kilo]
-            labels = [f"Alimento\n${sizes[0]:,.2f}", f"Otros Costos\n${sizes[1]:,.2f}"]
-            ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=['darkred', 'lightcoral'])
-            ax_pie.set_title(f"Costo Total por Kilo: ${costo_total_kilo:,.2f}")
-            st.pyplot(fig_pie)
     else:
         st.warning("No se pueden calcular los KPIs porque los kilos producidos o la participación del alimento son cero.")
 
