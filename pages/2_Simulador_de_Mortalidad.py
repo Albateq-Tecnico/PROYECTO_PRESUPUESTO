@@ -60,7 +60,11 @@ try:
     # 2. Aplicar la nueva curva y recalcular el Saldo
     tabla_simulada['Mortalidad_Acumulada'] = mortalidad_acum_simulada
     tabla_simulada['Saldo'] = st.session_state.aves_programadas - tabla_simulada['Mortalidad_Acumulada']
+    # --- AÑADE ESTAS LÍNEAS AQUÍ ---
+    st.write("DEBUG: Verificación de la columna 'Saldo'")
+    st.dataframe(tabla_simulada[['Dia', 'Mortalidad_Acumulada', 'Saldo']].head(10))
     
+    # ... el resto del código ...
     # 3. --- CORRECCIÓN CLAVE: Recalcular el consumo total y diario CON EL NUEVO SALDO ---
     if st.session_state.unidades_calculo == "Kilos":
         total_col, daily_col = "Kilos Totales", "Kilos Diarios"
