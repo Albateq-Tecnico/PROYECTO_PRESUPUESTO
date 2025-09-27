@@ -13,6 +13,14 @@ st.set_page_config(
     page_icon="pollito_tapabocas.ico", 
     layout="wide",
 )
+# Cargar el logo
+try:
+    logo = Image.open('ARCHIVOS/log_PEQ.png')
+except FileNotFoundError:
+    st.error("No se encontró el archivo del logo en la ruta 'ARCHIVOS/log_PEQ.png'")
+    logo = None
+# cargue el logo
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
