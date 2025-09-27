@@ -1,4 +1,4 @@
-# Contenido COMPLETO y FINAL para: pages/3_Simulador_de_Alimentacion.py
+# Contenido COMPLETO y CORREGIDO para: pages/3_Simulador_de_Alimentacion.py
 
 import streamlit as st
 import pandas as pd
@@ -112,6 +112,22 @@ try:
     max_peso_posible = tabla_base_limpia['Peso_Estimado'].max()
 
     for peso_obj_sens in pesos_a_evaluar:
+        # Lógica de "Una Sola Verdad": si el peso es el base, usa los datos guardados.
+        if peso_obj_sens == peso_base and 'resultados_base' in st.session_state:
+            base_results = st.session_state['resultados_base']
+            tabla_sens_base = tabla_base_limpia.loc[:(tabla_base_limpia['Peso_Estimado'] - peso_base).abs().idxmin()]
+            
+            resultados_sensibilidad.append({
+                "Peso Objetivo (gr)": int(peso_base),
+                "Días de Ciclo": int(tabla_sens_base['Dia'].iloc[-1]),
+                "Conversión Alimenticia": base_results["conversion_alimenticia"],
+                "Costo Alimento / Kilo ($)": base_results["costo_alimento_kilo"],
+                "Costo Pollito / Kilo ($)": base_results["costo_pollito_kilo"],
+                "Otros Costos / Kilo ($)": base_results["costo_otros_kilo"],
+                "Costo Total / Kilo ($)": base_results["costo_total_por_kilo"]
+            })
+            continue
+
         if peso_obj_sens <= 0: continue
         
         tabla_sens = tabla_base_limpia.copy()
@@ -176,7 +192,7 @@ try:
             })
 
     if resultados_sensibilidad:
-        df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
+        df_sensibilidad = pd.DataFrame(resultados_sensibilidad).sort_values(by="Peso Objetivo (gr)").reset_index(drop=True)
         columnas_finales = ["Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", "Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)", "Costo Total / Kilo ($)"]
         
         def highlight_base(row):
