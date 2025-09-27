@@ -1,4 +1,4 @@
-# Contenido COMPLETO y CORREGIDO para: pages/3_Simulador_de_Alimentacion.py
+# Contenido COMPLETO y ACTUALIZADO para: pages/3_Simulador_de_Alimentacion.py
 
 import streamlit as st
 import pandas as pd
@@ -38,13 +38,14 @@ que te permita alcanzar tu peso objetivo. El modelo asume que el rendimiento bio
 
 c1, c2, c3 = st.columns(3)
 with c1:
-    pre_iniciador_sim = st.slider("Gramos Pre-iniciador/ave", 0, 500, st.session_state.pre_iniciador)
+    pre_iniciador_sim = st.slider("Gramos Pre-iniciador/ave", 0, 500, st.session_state.pre_iniciador, key="slider_pre")
 with c2:
-    iniciador_sim = st.slider("Gramos Iniciador/ave", 500, 2000, st.session_state.iniciador)
+    iniciador_sim = st.slider("Gramos Iniciador/ave", 500, 2000, st.session_state.iniciador, key="slider_ini")
 with c3:
-    retiro_sim = st.slider("Gramos Retiro/ave", 0, 1000, st.session_state.retiro)
+    retiro_sim = st.slider("Gramos Retiro/ave", 0, 1000, st.session_state.retiro, key="slider_ret")
 
 try:
+    # --- Cálculos para el Plan de Alimentación Simulado ---
     tabla_sim_alimento = tabla_base_completa.copy()
     closest_idx = (tabla_sim_alimento['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
     tabla_sim_alimento = tabla_sim_alimento.loc[:closest_idx].copy()
@@ -92,8 +93,7 @@ except Exception as e:
 st.markdown("---")
 st.header("2. Análisis de Sensibilidad al Peso Objetivo")
 st.write("""
-Esta tabla muestra cómo cambian los indicadores clave si decides llevar tus aves a un peso de venta diferente. 
-Se usa el plan de alimentación y la mortalidad lineal definidos en la página principal.
+Esta tabla y gráfico muestran cómo cambian los indicadores y la estructura de costos si decides llevar tus aves a un peso de venta diferente.
 """)
 
 try:
@@ -107,7 +107,6 @@ try:
         'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
     }
 
-    # Pre-filtrar la tabla base para eliminar filas donde el peso no se pudo estimar
     tabla_base_limpia = tabla_base_completa.dropna(subset=['Peso_Estimado']).copy()
     max_peso_posible = tabla_base_limpia['Peso_Estimado'].max()
 
@@ -116,16 +115,11 @@ try:
         
         tabla_sens = tabla_base_limpia.copy()
         
-        # --- CORRECCIÓN: Lógica de truncamiento más robusta ---
-        # Si el peso objetivo es mayor al máximo posible, se usa el máximo.
         if peso_obj_sens > max_peso_posible:
             tabla_truncada = tabla_sens.copy()
         else:
-            # Si no, se busca el día más cercano y se corta la tabla
             idx = (tabla_sens['Peso_Estimado'] - peso_obj_sens).abs().idxmin()
             tabla_truncada = tabla_sens.loc[:idx].copy()
-        
-        # A partir de aquí, todos los cálculos usan 'tabla_truncada'
         
         df_interp_sens = tabla_truncada.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
         consumo_total_sens = np.interp(peso_obj_sens, df_interp_sens['Peso_Estimado'], df_interp_sens['Cons_Acum_Ajustado'])
@@ -165,6 +159,8 @@ try:
             costo_total_lote_sens = costo_total_alimento_sens + costo_total_pollitos_sens + costo_total_otros_sens
 
             costo_alimento_kilo = costo_total_alimento_sens / kilos_producidos_sens
+            costo_pollito_kilo = costo_total_pollitos_sens / kilos_producidos_sens
+            costo_otros_kilo = costo_total_otros_sens / kilos_producidos_sens
             costo_total_kilo = costo_total_lote_sens / kilos_producidos_sens
             conversion = consumo_total_kg / kilos_producidos_sens
             
@@ -173,14 +169,19 @@ try:
                 "Días de Ciclo": int(dias_ciclo),
                 "Conversión Alimenticia": conversion,
                 "Costo Alimento / Kilo ($)": costo_alimento_kilo,
+                "Costo Pollito / Kilo ($)": costo_pollito_kilo,
+                "Otros Costos / Kilo ($)": costo_otros_kilo,
                 "Costo Total / Kilo ($)": costo_total_kilo
             })
 
     if resultados_sensibilidad:
         df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
-        columnas_finales = ["Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", "Costo Alimento / Kilo ($)", "Costo Total / Kilo ($)"]
         
-        # Asegurarse de que la fila del peso base esté resaltada
+        columnas_finales = [
+            "Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", 
+            "Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)", "Costo Total / Kilo ($)"
+        ]
+        
         def highlight_base(row):
             is_base = row["Peso Objetivo (gr)"] == peso_base
             return ['background-color: #D6EAF8' if is_base else '' for _ in row]
@@ -193,11 +194,25 @@ try:
                 "Días de Ciclo": "{:,.0f}",
                 "Conversión Alimenticia": "{:,.3f}",
                 "Costo Alimento / Kilo ($)": "${:,.2f}",
+                "Costo Pollito / Kilo ($)": "${:,.2f}",
+                "Otros Costos / Kilo ($)": "${:,.2f}",
                 "Costo Total / Kilo ($)": "${:,.2f}"
             })
             .background_gradient(cmap='Greens_r', subset=['Costo Total / Kilo ($)'])
-            .background_gradient(cmap='Greens_r', subset=['Conversión Alimenticia'])
             .set_properties(**{'text-align': 'center'})
         )
+
+        # --- CAMBIO: Nuevo gráfico de barras apiladas ---
+        st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
+        
+        df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
+        df_cost_structure = df_chart[[
+            "Costo Alimento / Kilo ($)", 
+            "Costo Pollito / Kilo ($)", 
+            "Otros Costos / Kilo ($)"
+        ]]
+        
+        st.bar_chart(df_cost_structure)
+
 except Exception as e:
     st.error(f"Error en el análisis de sensibilidad: {e}")
