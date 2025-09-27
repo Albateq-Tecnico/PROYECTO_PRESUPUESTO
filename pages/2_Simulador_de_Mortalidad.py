@@ -1,4 +1,4 @@
-# Contenido COMPLETO y CORREGIDO para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
@@ -96,7 +96,6 @@ try:
     tabla_base['Peso_Estimado'] *= (st.session_state.productividad / 100.0)
 
     closest_idx = (tabla_base['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
-    # --- CORRECCIÓN: La variable se llama tabla_base_final y se define aquí ---
     tabla_base_final = tabla_base.loc[:closest_idx].copy()
     
     df_interp = tabla_base_final.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
@@ -214,16 +213,21 @@ try:
 
         if resultados_sensibilidad:
             df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
-            df_sensibilidad = df_sensibilidad.rename(columns={
+            df_sensibilidad_display = df_sensibilidad.rename(columns={
                 "mortalidad_objetivo": "Mortalidad Objetivo (%)",
                 "costo_alimento_kilo": "Costo Alimento / Kilo",
                 "costo_pollito_kilo": "Costo Pollito / Kilo",
                 "costo_otros_kilo": "Otros Costos / Kilo",
                 "costo_total_por_kilo": "Costo Total / Kilo"
             })
+            
+            columnas_a_mostrar = [
+                "Mortalidad Objetivo (%)", "Costo Alimento / Kilo", "Costo Pollito / Kilo", 
+                "Otros Costos / Kilo", "Costo Total / Kilo"
+            ]
 
             st.dataframe(
-                df_sensibilidad.style
+                df_sensibilidad_display[columnas_a_mostrar].style
                 .format({
                     "Mortalidad Objetivo (%)": "{:.2f}%",
                     "Costo Alimento / Kilo": "${:,.2f}",
