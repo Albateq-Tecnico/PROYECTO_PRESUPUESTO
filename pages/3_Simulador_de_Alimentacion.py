@@ -226,7 +226,7 @@ try:
         ]]
         
         fig, ax = plt.subplots()
-        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='PuBuGn')
+        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='BuGn')
         
         ax.set_ylabel("Costo por Kilo (%)")
         ax.set_xlabel("Peso Objetivo (gramos)")
