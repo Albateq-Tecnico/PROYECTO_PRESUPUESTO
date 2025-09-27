@@ -226,7 +226,12 @@ try:
         ]]
         
         fig, ax = plt.subplots()
-        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='BuGn')
+        # Opción 1: Usando nombres y tuplas RGB (o códigos hexadecimales)
+        colores_personalizados = ['#FFFFE0', 'green', 'blue'] # Amarillo claro, verde, azul
+        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, color=colores_personalizados)
+
+        
+        #df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='BuGn')
         
         ax.set_ylabel("Costo por Kilo (%)")
         ax.set_xlabel("Peso Objetivo (gramos)")
