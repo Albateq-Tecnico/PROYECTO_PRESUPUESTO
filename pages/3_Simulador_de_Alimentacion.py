@@ -220,9 +220,9 @@ try:
         
         df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
         df_cost_structure = df_chart[[
-            "Costo Alimento / Kilo ($)", 
-            "Costo Pollito / Kilo ($)", 
-            "Otros Costos / Kilo ($)"
+            "Costo Alimento / Kilo (%)", 
+            "Costo Pollito / Kilo (%)", 
+            "Otros Costos / Kilo (%)"
         ]]
 
         # 1. Convertir los datos a porcentajes
