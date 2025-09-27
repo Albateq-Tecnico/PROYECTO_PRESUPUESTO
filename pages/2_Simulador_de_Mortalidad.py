@@ -1,4 +1,4 @@
-# Contenido COMPLETO y CORREGIDO para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
@@ -9,10 +9,10 @@ from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcu
 
 st.set_page_config(page_title="Análisis de Mortalidad", page_icon="💀", layout="wide")
 
-# --- FUNCIÓN DE CÁLCULO RESTAURADA ---
+# --- FUNCIÓN DE CÁLCULO REFACTORIZADA ---
 def calcular_escenario_completo(tabla_base, tipo_mortalidad, porcentaje_curva, mortalidad_objetivo_porc, st_session_state):
     """
-    Toma una tabla base y parámetros de mortalidad, y devuelve un diccionario con todos los KPIs calculados.
+    Toma una tabla base y parámetros de mortalidad, y devuelve un diccionario con KPIs y la tabla calculada.
     """
     tabla_escenario = tabla_base.copy()
     
@@ -113,17 +113,18 @@ try:
 
     # --- PASO 2: CALCULAR LOS TRES ESCENARIOS PRINCIPALES ---
     mortalidad_base = st.session_state.mortalidad_objetivo
-    kpis_lineal, tabla_lineal = calcular_escenario_completo(tabla_base_final, "Lineal (Uniforme)", 50, mortalidad_base, st.session_state)
+    
+    # --- CORRECCIÓN "UNA SOLA VERDAD": Lee los resultados base en lugar de recalcularlos ---
+    kpis_lineal = st.session_state.get('resultados_base')
+    _, tabla_lineal = calcular_escenario_completo(tabla_base_final, "Lineal (Uniforme)", 50, mortalidad_base, st.session_state)
+    
     kpis_inicio, tabla_inicio = calcular_escenario_completo(tabla_base_final, "Concentrada al Inicio (Semana 1)", 90, mortalidad_base, st.session_state)
     kpis_final, tabla_final = calcular_escenario_completo(tabla_base_final, "Concentrada al Final (Última Semana)", 90, mortalidad_base, st.session_state)
 
     st.header("1. Tabla Comparativa de Curvas de Mortalidad")
     if kpis_lineal and kpis_inicio and kpis_final:
         comparative_data = {
-            "Concepto": [
-                "Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)",
-                "**COSTO TOTAL POR KILO ($)**"
-            ],
+            "Concepto": ["Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)", "**COSTO TOTAL POR KILO ($)**"],
             "Lineal (Base)": [
                 kpis_lineal["costo_alimento_kilo"], kpis_lineal["costo_pollito_kilo"],
                 kpis_lineal["costo_otros_kilo"], kpis_lineal["costo_total_por_kilo"]
@@ -191,7 +192,7 @@ try:
             fig_pie2, ax_pie2 = plt.subplots()
             plot_pie_chart(ax_pie2, kpis_inicio, "Mortalidad Inicial")
             st.pyplot(fig_pie2)
-        with col3:
+        with col_pie3:
             fig_pie3, ax_pie3 = plt.subplots()
             plot_pie_chart(ax_pie3, kpis_final, "Mortalidad Final")
             st.pyplot(fig_pie3)
@@ -220,10 +221,7 @@ try:
                 "costo_total_por_kilo": "Costo Total / Kilo"
             })
             
-            columnas_a_mostrar = [
-                "Mortalidad Objetivo (%)", "Costo Alimento / Kilo", "Costo Pollito / Kilo", 
-                "Otros Costos / Kilo", "Costo Total / Kilo"
-            ]
+            columnas_a_mostrar = ["Mortalidad Objetivo (%)", "Costo Alimento / Kilo", "Costo Pollito / Kilo", "Otros Costos / Kilo", "Costo Total / Kilo"]
 
             st.dataframe(
                 df_sensibilidad_display[columnas_a_mostrar].style
@@ -237,7 +235,6 @@ try:
                 .background_gradient(cmap='Reds', subset=['Costo Total / Kilo'])
                 .set_properties(**{'text-align': 'center'})
             )
-
     else:
         st.warning("No se pudieron calcular los KPIs para la comparación.")
 
