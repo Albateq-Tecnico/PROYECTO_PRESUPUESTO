@@ -112,22 +112,6 @@ try:
     max_peso_posible = tabla_base_limpia['Peso_Estimado'].max()
 
     for peso_obj_sens in pesos_a_evaluar:
-        # --- CORRECCIÓN "UNA SOLA VERDAD": Lee el resultado base de la sesión ---
-        if peso_obj_sens == peso_base and 'resultados_base' in st.session_state:
-            base_results = st.session_state['resultados_base']
-            tabla_sens_base = tabla_base_limpia.loc[:(tabla_base_limpia['Peso_Estimado'] - peso_base).abs().idxmin()]
-            
-            resultados_sensibilidad.append({
-                "Peso Objetivo (gr)": int(peso_base),
-                "Días de Ciclo": int(tabla_sens_base['Dia'].iloc[-1]),
-                "Conversión Alimenticia": base_results["conversion_alimenticia"],
-                "Costo Alimento / Kilo ($)": base_results["costo_alimento_kilo"],
-                "Costo Pollito / Kilo ($)": base_results["costo_pollito_kilo"],
-                "Otros Costos / Kilo ($)": base_results["costo_otros_kilo"],
-                "Costo Total / Kilo ($)": base_results["costo_total_por_kilo"]
-            })
-            continue
-
         if peso_obj_sens <= 0: continue
         
         tabla_sens = tabla_base_limpia.copy()
@@ -192,7 +176,7 @@ try:
             })
 
     if resultados_sensibilidad:
-        df_sensibilidad = pd.DataFrame(resultados_sensibilidad).sort_values(by="Peso Objetivo (gr)").reset_index(drop=True)
+        df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
         columnas_finales = ["Peso Objetivo (gr)", "Días de Ciclo", "Conversión Alimenticia", "Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)", "Costo Total / Kilo ($)"]
         
         def highlight_base(row):
@@ -203,9 +187,12 @@ try:
             df_sensibilidad[columnas_finales].style
             .apply(highlight_base, axis=1)
             .format({
-                "Peso Objetivo (gr)": "{:,.0f}", "Días de Ciclo": "{:,.0f}",
-                "Conversión Alimenticia": "{:,.3f}", "Costo Alimento / Kilo ($)": "${:,.2f}",
-                "Costo Pollito / Kilo ($)": "${:,.2f}", "Otros Costos / Kilo ($)": "${:,.2f}",
+                "Peso Objetivo (gr)": "{:,.0f}",
+                "Días de Ciclo": "{:,.0f}",
+                "Conversión Alimenticia": "{:,.3f}",
+                "Costo Alimento / Kilo ($)": "${:,.2f}",
+                "Costo Pollito / Kilo ($)": "${:,.2f}",
+                "Otros Costos / Kilo ($)": "${:,.2f}",
                 "Costo Total / Kilo ($)": "${:,.2f}"
             })
             .background_gradient(cmap='Greens_r', subset=['Costo Total / Kilo ($)'])
@@ -213,38 +200,33 @@ try:
             .set_properties(**{'text-align': 'center'})
         )
         
-        # --- CAMBIO: Nuevo gráfico de barras apiladas con etiquetas de porcentaje ---
-st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
+        st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
+        
+        df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
+        df_cost_structure = df_chart[[
+            "Costo Alimento / Kilo ($)", 
+            "Costo Pollito / Kilo ($)", 
+            "Otros Costos / Kilo ($)"
+        ]]
+        
+        fig, ax = plt.subplots()
+        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YlGn')
+        
+        ax.set_ylabel("Costo por Kilo ($)")
+        ax.set_xlabel("Peso Objetivo (gramos)")
+        ax.legend(title="Componente de Costo")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
 
-df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
-df_cost_structure = df_chart[[
-    "Costo Alimento / Kilo ($)", 
-    "Costo Pollito / Kilo ($)", 
-    "Otros Costos / Kilo ($)"
-]]
+        bar_totals = df_cost_structure.sum(axis=1)
 
-fig, ax = plt.subplots()
-df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YlGn')
+        for container in ax.containers:
+            labels = [f"{ (v / bar_totals[i]) * 100 :.1f}%" if (v / bar_totals[i]) * 100 > 4 else '' 
+                      for i, v in enumerate(container.datavalues)]
+            
+            ax.bar_label(container, labels=labels, label_type='center', color='black', weight='bold', fontsize=8)
 
-ax.set_ylabel("Costo por Kilo ($)")
-ax.set_xlabel("Peso Objetivo (gramos)")
-ax.legend(title="Componente de Costo")
-plt.xticks(rotation=45)
-plt.tight_layout() # Ajusta el layout para que no se corten las etiquetas
+        st.pyplot(fig)
 
-# --- LÓGICA MODIFICADA PARA ETIQUETAS DE PORCENTAJE ---
-# 1. Calcular los totales de cada barra para poder sacar el porcentaje
-bar_totals = df_cost_structure.sum(axis=1)
-
-for container in ax.containers:
-    # 2. Calcular el porcentaje de cada segmento con respecto a su total de barra
-    #    y formatear la etiqueta. Se muestra solo si el porcentaje es > 4% para no saturar.
-    labels = [f"{ (v / bar_totals[i]) * 100 :.1f}%" if (v / bar_totals[i]) * 100 > 4 else '' 
-              for i, v in enumerate(container.datavalues)]
-    
-    # 3. Aplicar las nuevas etiquetas. Se cambia el color a negro para mejor contraste con 'YlGn'.
-    ax.bar_label(container, labels=labels, label_type='center', color='black', weight='bold', fontsize=8)
-
-st.pyplot(fig)
 except Exception as e:
     st.error(f"Error en el análisis de sensibilidad: {e}")
