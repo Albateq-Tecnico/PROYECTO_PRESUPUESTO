@@ -227,7 +227,7 @@ try:
         
         fig, ax = plt.subplots()
         # Opción 1: Usando nombres y tuplas RGB (o códigos hexadecimales)
-        colores_personalizados = ['#FFFFE0', 'green', 'blue'] # Amarillo claro, verde, azul
+        colores_personalizados = ['#00D24B', '#FAE511', '#FA8011'] # Amarillo claro, verde, azul
         df_cost_structure.plot(kind='bar', stacked=True, ax=ax, color=colores_personalizados)
 
         
