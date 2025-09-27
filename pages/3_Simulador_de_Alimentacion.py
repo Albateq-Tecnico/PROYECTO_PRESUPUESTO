@@ -6,16 +6,10 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 from utils import load_data, reconstruir_tabla_base
-
-
 from matplotlib.ticker import PercentFormatter
 import matplotlib.colors as mcolors
 from PIL import Image
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-
-
-
-
 
 st.set_page_config(page_title="Simulador de Alimentación", page_icon="🌽", layout="wide")
 
@@ -122,7 +116,6 @@ try:
     max_peso_posible = tabla_base_limpia['Peso_Estimado'].max()
 
     for peso_obj_sens in pesos_a_evaluar:
-        # Lógica de "Una Sola Verdad": si el peso es el base, usa los datos guardados.
         if peso_obj_sens == peso_base and 'resultados_base' in st.session_state:
             base_results = st.session_state['resultados_base']
             tabla_sens_base = tabla_base_limpia.loc[:(tabla_base_limpia['Peso_Estimado'] - peso_base).abs().idxmin()]
@@ -209,101 +202,92 @@ try:
             is_base = row["Peso Objetivo (gr)"] == peso_base
             return ['background-color: #D6EAF8' if is_base else '' for _ in row]
 
+        # --- INICIO DEL BLOQUE CORREGIDO ---
+        # TODO ESTE CÓDIGO AHORA ESTÁ DENTRO DEL "if resultados_sensibilidad:"
+        
         # Creamos un diccionario para renombrar las columnas
-columnas_a_renombrar = {
-    "Costo Alimento / Kilo ($)": "Costo Alimento / Kilo (%)",
-    "Costo Pollito / Kilo ($)": "Costo Pollito / Kilo (%)",
-    "Otros Costos / Kilo ($)": "Otros Costos / Kilo (%)",
-    "Costo Total / Kilo ($)": "Costo Total / Kilo (%)"
-}
+        columnas_a_renombrar = {
+            "Costo Alimento / Kilo ($)": "Costo Alimento / Kilo (%)",
+            "Costo Pollito / Kilo ($)": "Costo Pollito / Kilo (%)",
+            "Otros Costos / Kilo ($)": "Otros Costos / Kilo (%)",
+            "Costo Total / Kilo ($)": "Costo Total / Kilo (%)"
+        }
 
-# Aplicamos el renombrado al dataframe antes de mostrarlo
-# Asumimos que df_sensibilidad y columnas_finales ya existen en tu código
-df_display = df_sensibilidad[columnas_finales].rename(columns=columnas_a_renombrar)
+        # Aplicamos el renombrado al dataframe antes de mostrarlo
+        df_display = df_sensibilidad[columnas_finales].rename(columns=columnas_a_renombrar)
 
-st.dataframe(
-    df_display.style
-    .apply(highlight_base, axis=1)
-    .format({
-        "Peso Objetivo (gr)": "{:,.0f}",
-        "Días de Ciclo": "{:,.0f}",
-        "Conversión Alimenticia": "{:,.3f}",
-        # Asegúrate de que las claves coincidan con los nuevos nombres de columna
-        "Costo Alimento / Kilo (%)": "{:,.2f}%",
-        "Costo Pollito / Kilo (%)": "{:,.2f}%",
-        "Otros Costos / Kilo (%)": "{:,.2f}%",
-        "Costo Total / Kilo (%)": "{:,.2f}%"
-    })
-    # Los subsets también deben usar los nuevos nombres de columna
-    .background_gradient(cmap='Greens_r', subset=['Costo Total / Kilo (%)'])
-    .background_gradient(cmap='Greens_r', subset=['Conversión Alimenticia'])
-    .set_properties(**{'text-align': 'center'})
-)
+        st.dataframe(
+            df_display.style
+            .apply(highlight_base, axis=1)
+            .format({
+                "Peso Objetivo (gr)": "{:,.0f}",
+                "Días de Ciclo": "{:,.0f}",
+                "Conversión Alimenticia": "{:,.3f}",
+                "Costo Alimento / Kilo (%)": "${:,.2f}",
+                "Costo Pollito / Kilo (%)": "${:,.2f}",
+                "Otros Costos / Kilo (%)": "${:,.2f}",
+                "Costo Total / Kilo (%)": "${:,.2f}"
+            })
+            .background_gradient(cmap='Greens_r', subset=['Costo Total / Kilo (%)'])
+            .background_gradient(cmap='Greens_r', subset=['Conversión Alimenticia'])
+            .set_properties(**{'text-align': 'center'})
+        )
 
-st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
+        st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
 
-df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
-df_cost_structure = df_chart[[
-    "Costo Alimento / Kilo ($)",
-    "Costo Pollito / Kilo ($)",
-    "Otros Costos / Kilo ($)"
-]]
+        df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
+        df_cost_structure = df_chart[[
+            "Costo Alimento / Kilo ($)",
+            "Costo Pollito / Kilo ($)",
+            "Otros Costos / Kilo ($)"
+        ]]
 
-# Convertir los datos a porcentajes
-df_percentage = df_cost_structure.div(df_cost_structure.sum(axis=1), axis=0) * 100
+        # Convertir los datos a porcentajes
+        df_percentage = df_cost_structure.div(df_cost_structure.sum(axis=1), axis=0) * 100
 
-# 2. MODIFICACIÓN DE LA LEYENDA DEL GRÁFICO: Cambiar ($) por (%)
-# Renombramos las columnas para que la leyenda del gráfico sea correcta
-df_percentage.columns = [
-    "Costo Alimento / Kilo (%)",
-    "Costo Pollito / Kilo (%)",
-    "Otros Costos / Kilo (%)"
-]
+        # Renombramos las columnas para que la leyenda del gráfico sea correcta
+        df_percentage.columns = [
+            "Costo Alimento / Kilo (%)",
+            "Costo Pollito / Kilo (%)",
+            "Otros Costos / Kilo (%)"
+        ]
 
-fig, ax = plt.subplots()
+        fig, ax = plt.subplots()
 
-# 3. MODIFICACIÓN DE COLORES: Usar una paleta de verdes
-# Tonos de verde (de más oscuro a más claro) para replicar el estilo deseado
-colores_verdes = ['#2E7D32', '#66BB6A', '#A5D6A7']
-df_percentage.plot(kind='bar', stacked=True, ax=ax, color=colores_verdes)
+        # Usar una paleta de verdes
+        colores_verdes = ['#2E7D32', '#66BB6A', '#A5D6A7']
+        df_percentage.plot(kind='bar', stacked=True, ax=ax, color=colores_verdes)
 
-# Formatear el eje Y como porcentaje
-ax.yaxis.set_major_formatter(PercentFormatter(100))
-ax.set_ylim(0, 100)
+        # Formatear el eje Y como porcentaje
+        ax.yaxis.set_major_formatter(PercentFormatter(100))
+        ax.set_ylim(0, 100)
 
-ax.set_ylabel("Participación Porcentual en el Costo por Kilo")
-ax.set_xlabel("Peso Objetivo (gramos)")
-ax.legend(title="Componente de Costo")
-plt.xticks(rotation=45)
-plt.tight_layout()
+        ax.set_ylabel("Participación Porcentual en el Costo por Kilo")
+        ax.set_xlabel("Peso Objetivo (gramos)")
+        ax.legend(title="Componente de Costo")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
 
-# 4. MODIFICACIÓN DE ETIQUETAS: Color de texto dinámico (blanco/negro)
-for i, container in enumerate(ax.containers):
-    # Obtener el color de fondo de la barra actual
-    bg_color = colores_verdes[i]
-    
-    # Calcular la luminancia para decidir el color del texto
-    # La luminancia es una medida del brillo percibido de un color
-    rgb = mcolors.to_rgb(bg_color)
-    luminancia = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
-    
-    # Si el fondo es oscuro (luminancia < 0.5), el texto es blanco; de lo contrario, es negro
-    color_texto = 'white' if luminancia < 0.5 else 'black'
-    
-    labels = [f"{v:.1f}%" if v > 4 else '' for v in container.datavalues]
-    ax.bar_label(container, labels=labels, label_type='center', color=color_texto, weight='bold', fontsize=8)
+        # Color de texto dinámico (blanco/negro)
+        for i, container in enumerate(ax.containers):
+            bg_color = colores_verdes[i]
+            rgb = mcolors.to_rgb(bg_color)
+            luminancia = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+            color_texto = 'white' if luminancia < 0.5 else 'black'
+            
+            labels = [f"{v:.1f}%" if v > 4 else '' for v in container.datavalues]
+            ax.bar_label(container, labels=labels, label_type='center', color=color_texto, weight='bold', fontsize=8)
 
-# Añadir la marca de agua (código original)
-try:
-    logo_img_f = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
-    imagebox = OffsetImage(logo_img_f, zoom=0.3, alpha=0.1)
-    ab = AnnotationBbox(imagebox, (0.5, 0.5), xycoords='axes fraction', frameon=False, box_alignment=(0.5, 0.5), zorder=-1)
-    ax.add_artist(ab)
-except Exception:
-    pass
+        # Añadir la marca de agua
+        try:
+            logo_img_f = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+            imagebox = OffsetImage(logo_img_f, zoom=0.3, alpha=0.1)
+            ab = AnnotationBbox(imagebox, (0.5, 0.5), xycoords='axes fraction', frameon=False, box_alignment=(0.5, 0.5), zorder=-1)
+            ax.add_artist(ab)
+        except Exception:
+            pass
 
-st.pyplot(fig)
+        st.pyplot(fig)
 
-# --- FIN DE LA SECCIÓN MODIFICADA ---
 except Exception as e:
     st.error(f"Error en el análisis de sensibilidad: {e}")
