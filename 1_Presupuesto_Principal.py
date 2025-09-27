@@ -230,7 +230,7 @@ else:
                         "Costo Alimento / Kilo ($)", "Costo Pollitos / Kilo ($)", "Costo Otros / Kilo ($)", "**Costo Total / Kilo ($)**",
                         "Costo Total Alimento ($)", "Costo Total Pollitos ($)", "Costo Total Otros ($)", "Costo por Mortalidad ($)", "**Costo Total de Producción ($)**"
                     ], "Valor": [
-                        aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj_final,
+                        round(aves_producidas), round(kilos_totales_producidos), round(consumo_total_objetivo_ave), round(peso_obj_final),
                         costo_alimento_kilo, costo_pollito_kilo, costo_otros_kilo, costo_total_kilo,
                         costo_total_alimento, costo_total_pollitos, costo_total_otros, costo_desperdicio_total, costo_total_lote
                     ]
@@ -286,7 +286,7 @@ else:
             st.markdown("---")
             st.markdown("""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
+            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
             </div>
             <div style="text-align: center; margin-top: 15px;">
             Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
