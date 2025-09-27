@@ -219,7 +219,7 @@ try:
         df_cost_structure = df_chart[["Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)"]]
         
         fig, ax = plt.subplots()
-        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YIGn')
+        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YlGn')
         
         ax.set_ylabel("Costo por Kilo ($)")
         ax.set_xlabel("Peso Objetivo (gramos)")
