@@ -228,7 +228,7 @@ try:
         fig, ax = plt.subplots()
         df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YlGn')
         
-        ax.set_ylabel("Costo por Kilo ($)")
+        ax.set_ylabel("Costo por Kilo (%)")
         ax.set_xlabel("Peso Objetivo (gramos)")
         ax.legend(title="Componente de Costo")
         plt.xticks(rotation=45)
