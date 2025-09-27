@@ -213,25 +213,38 @@ try:
             .set_properties(**{'text-align': 'center'})
         )
         
-        st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
-        
-        df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
-        df_cost_structure = df_chart[["Costo Alimento / Kilo ($)", "Costo Pollito / Kilo ($)", "Otros Costos / Kilo ($)"]]
-        
-        fig, ax = plt.subplots()
-        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YlGn')
-        
-        ax.set_ylabel("Costo por Kilo ($)")
-        ax.set_xlabel("Peso Objetivo (gramos)")
-        ax.legend(title="Componente de Costo")
-        plt.xticks(rotation=45)
-        
-        for container in ax.containers:
-            # Formatear etiquetas con separador de miles y signo de dólar
-            labels = [f"${v:,.0f}" if v > 0 else '' for v in container.datavalues]
-            ax.bar_label(container, labels=labels, label_type='center', color='white', weight='bold', fontsize=8)
+        # --- CAMBIO: Nuevo gráfico de barras apiladas con etiquetas de porcentaje ---
+st.subheader("Visualización de la Estructura de Costos por Peso Objetivo")
 
-        st.pyplot(fig)
+df_chart = df_sensibilidad.set_index("Peso Objetivo (gr)")
+df_cost_structure = df_chart[[
+    "Costo Alimento / Kilo ($)", 
+    "Costo Pollito / Kilo ($)", 
+    "Otros Costos / Kilo ($)"
+]]
 
+fig, ax = plt.subplots()
+df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='YlGn')
+
+ax.set_ylabel("Costo por Kilo ($)")
+ax.set_xlabel("Peso Objetivo (gramos)")
+ax.legend(title="Componente de Costo")
+plt.xticks(rotation=45)
+plt.tight_layout() # Ajusta el layout para que no se corten las etiquetas
+
+# --- LÓGICA MODIFICADA PARA ETIQUETAS DE PORCENTAJE ---
+# 1. Calcular los totales de cada barra para poder sacar el porcentaje
+bar_totals = df_cost_structure.sum(axis=1)
+
+for container in ax.containers:
+    # 2. Calcular el porcentaje de cada segmento con respecto a su total de barra
+    #    y formatear la etiqueta. Se muestra solo si el porcentaje es > 4% para no saturar.
+    labels = [f"{ (v / bar_totals[i]) * 100 :.1f}%" if (v / bar_totals[i]) * 100 > 4 else '' 
+              for i, v in enumerate(container.datavalues)]
+    
+    # 3. Aplicar las nuevas etiquetas. Se cambia el color a negro para mejor contraste con 'YlGn'.
+    ax.bar_label(container, labels=labels, label_type='center', color='black', weight='bold', fontsize=8)
+
+st.pyplot(fig)
 except Exception as e:
     st.error(f"Error en el análisis de sensibilidad: {e}")
