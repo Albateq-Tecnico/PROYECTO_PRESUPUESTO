@@ -234,9 +234,11 @@ try:
         plt.xticks(rotation=45)
         plt.tight_layout()
 
-        bar_totals = df_cost_structure.sum(axis=1)
+        # --- CORRECCIÓN: Convertir la Serie de Pandas a un array de NumPy con .values ---
+        bar_totals = df_cost_structure.sum(axis=1).values
 
         for container in ax.containers:
+            # Ahora el cálculo de 'labels' funcionará correctamente
             labels = [f"{ (v / bar_totals[i]) * 100 :.1f}%" if (v / bar_totals[i]) * 100 > 4 else '' 
                       for i, v in enumerate(container.datavalues)]
             
