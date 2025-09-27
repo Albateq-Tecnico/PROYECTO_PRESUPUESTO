@@ -8,7 +8,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df
 
-st.set_page_config(page_title="Presupuesto Avícola", page_icon="🐔", layout="wide")
+st.set_page_config(
+    page_title="Presupuesto Avícola",
+    page_icon="pollito_tapabocas.ico", # Icono personalizado
+    layout="wide",
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -65,9 +69,9 @@ st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 st.sidebar.subheader("Estructura de Costos Directos")
 st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo Alimento", ["Kilos", "Bultos x 40 Kilos"])
 st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
-st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2100.0, format="%.2f")
-st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2050.0, format="%.2f")
-st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2040.0, format="%.2f")
+st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
+st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
+st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
 st.session_state.otros_costos_ave = st.sidebar.number_input("Otros Costos Estimados ($/ave)", 0.0, 10000.0, 1500.0, format="%.2f", help="Incluye mano de obra, sanidad, energía, depreciación, etc.")
 
 # --- BOTÓN PARA INICIAR EL CÁLCULO ---
@@ -215,8 +219,8 @@ else:
                 kpi_data = {
                     "Métrica": [
                         "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
-                        "Costo Alimento / Kilo ($)", "Costo Pollitos / Kilo ($)", "Costo Otros / Kilo ($)", "Costo Total / Kilo ($)",
-                        "Costo Total Alimento ($)", "Costo Total Pollitos ($)", "Costo Total Otros ($)", "Costo por Mortalidad ($)", "Costo Total de Producción ($)"
+                        "Costo Alimento / Kilo ($)", "Costo Pollitos / Kilo ($)", "Costo Otros / Kilo ($)", "**Costo Total / Kilo ($)**",
+                        "Costo Total Alimento ($)", "Costo Total Pollitos ($)", "Costo Total Otros ($)", "Costo por Mortalidad ($)", "**Costo Total de Producción ($)**"
                     ], "Valor": [
                         aves_producidas, kilos_totales_producidos, consumo_total_objetivo_ave, peso_obj_final,
                         costo_total_alimento / kilos_totales_producidos, costo_total_pollitos / kilos_totales_producidos, costo_total_otros / kilos_totales_producidos, costo_total_kilo,
@@ -278,7 +282,7 @@ else:
             st.markdown("---")
             st.markdown("""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada....
+            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
             </div>
             <div style="text-align: center; margin-top: 15px;">
             Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
