@@ -224,32 +224,44 @@ try:
             "Costo Pollito / Kilo ($)", 
             "Otros Costos / Kilo ($)"
         ]]
-        
-        fig, ax = plt.subplots()
-        # Opción 1: Usando nombres y tuplas RGB (o códigos hexadecimales)
-        colores_personalizados = ['#00D24B', '#FAE511', '#FA8011'] # Amarillo claro, verde, azul
-        df_cost_structure.plot(kind='bar', stacked=True, ax=ax, color=colores_personalizados)
 
+        # 1. Convertir los datos a porcentajes
+        df_percentage = df_cost_structure.div(df_cost_structure.sum(axis=1), axis=0) * 100
+
+        fig, ax = plt.subplots()
         
-        #df_cost_structure.plot(kind='bar', stacked=True, ax=ax, colormap='BuGn')
+        # 2. Graficar los datos porcentuales
+        colores_personalizados = ['#00D24B', '#FAE511', '#FA8011']
+        df_percentage.plot(kind='bar', stacked=True, ax=ax, color=colores_personalizados)
         
-        ax.set_ylabel("Costo por Kilo (%)")
+        # 3. Formatear el eje Y como porcentaje
+        from matplotlib.ticker import PercentFormatter
+        ax.yaxis.set_major_formatter(PercentFormatter(100))
+        ax.set_ylim(0, 100) # Asegurar que el eje va de 0 a 100
+
+        ax.set_ylabel("Participación Porcentual en el Costo por Kilo")
         ax.set_xlabel("Peso Objetivo (gramos)")
         ax.legend(title="Componente de Costo")
         plt.xticks(rotation=45)
         plt.tight_layout()
 
-        # --- CORRECCIÓN: Convertir la Serie de Pandas a un array de NumPy con .values ---
-        bar_totals = df_cost_structure.sum(axis=1).values
-
+        # 4. Añadir etiquetas de porcentaje (ahora es más simple)
         for container in ax.containers:
-            # Ahora el cálculo de 'labels' funcionará correctamente
-            labels = [f"{ (v / bar_totals[i]) * 100 :.1f}%" if (v / bar_totals[i]) * 100 > 4 else '' 
-                      for i, v in enumerate(container.datavalues)]
-            
+            # Los valores ya están en %, solo necesitamos formatearlos
+            labels = [f"{v:.1f}%" if v > 4 else '' for v in container.datavalues]
             ax.bar_label(container, labels=labels, label_type='center', color='black', weight='bold', fontsize=8)
 
-        st.pyplot(fig)
+        # 5. Añadir la marca de agua
+        try:
+            from PIL import Image
+            from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+            logo_img_f = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+            imagebox = OffsetImage(logo_img_f, zoom=0.3, alpha=0.1)
+            ab = AnnotationBbox(imagebox, (0.5, 0.5), xycoords='axes fraction', frameon=False, box_alignment=(0.5, 0.5), zorder=-1)
+            ax.add_artist(ab)
+        except Exception:
+            pass # No hacer nada si el logo falla
 
+        st.pyplot(fig)
 except Exception as e:
     st.error(f"Error en el análisis de sensibilidad: {e}")
