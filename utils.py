@@ -10,6 +10,7 @@ def load_data(file_path):
     try:
         return pd.read_csv(file_path)
     except FileNotFoundError:
+        # Este es el error que estás viendo
         st.error(f"Error Crítico: No se encontró el archivo de datos en: {file_path}")
         return None
     except Exception as e:
