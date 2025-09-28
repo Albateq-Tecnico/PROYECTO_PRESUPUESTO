@@ -10,7 +10,7 @@ from utils import load_data, clean_numeric_column, calcular_peso_estimado, style
 
 st.set_page_config(
     page_title="Presupuesto Avícola",
-    page_icon="pollito_tapabocas.ico", 
+    page_icon="log_PEQ.png", 
     layout="wide",
 )
 
