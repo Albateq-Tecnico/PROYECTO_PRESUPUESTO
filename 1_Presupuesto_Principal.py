@@ -9,6 +9,13 @@ import matplotlib.pyplot as plt
 from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df
 from PIL import Image # Importar Image de la librería Pillow
 
+
+# Cargar el logo
+try:
+    logo = Image.open('ARCHIVOS/log_PEQ.png')
+except FileNotFoundError:
+    st.error("No se encontró el archivo del logo en la ruta 'ARCHIVOS/log_PEQ.png'")
+    logo = None
 # --- CORRECCIÓN DE RUTA: Como este archivo está en la raíz, solo necesita un .parent ---
 BASE_DIR = Path(__file__).resolve().parent
 
