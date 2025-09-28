@@ -8,14 +8,22 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df
 
-st.set_page_config(
-    page_title="Presupuesto Avícola",
-    page_icon="pollito_tapabocas.ico", 
-    layout="wide",
-)
-
 # --- CORRECCIÓN DE RUTA: Como este archivo está en la raíz, solo necesita un .parent ---
 BASE_DIR = Path(__file__).resolve().parent
+
+# --- CAMBIO: Cargar la imagen para el ícono de la página ---
+try:
+    # Intentar abrir la imagen del logo
+    page_icon_image = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+except FileNotFoundError:
+    # Si no se encuentra, usar un emoji como alternativa
+    page_icon_image = "🐔"
+
+st.set_page_config(
+    page_title="Presupuesto Avícola",
+    page_icon=page_icon_image,  # Usar la imagen cargada
+    layout="wide",
+)
 
 # --- La carga de datos ahora funcionará correctamente ---
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
