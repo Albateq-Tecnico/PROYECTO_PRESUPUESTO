@@ -13,6 +13,9 @@ st.title("⚙️ Simulador de Eficiencia Productiva")
 
 st.info(
     """
+    La métrica "Productividad (%)", también conocida como "Diferencia VS Genética", es un parámetro zootécnico avanzado diseñado para cuantificar la eficiencia de la conversión alimenticia de un lote de aves. Su metodología aísla la eficiencia metabólica al comparar el peso real promedio del lote contra el peso estándar que su línea genética (el benchmark) debería alcanzar con la misma cantidad exacta de alimento consumido. A diferencia del Índice de Conversión Alimenticia (ICA), este enfoque no se ve afectado por variaciones en el apetito, enfocándose puramente en la calidad de la conversión.
+
+Un resultado positivo indica un rendimiento superior al estándar, mientras que un resultado negativo es una señal de alerta crítica que revela una ineficiencia. Esta puede ser causada por una baja calidad nutricional del alimento, desafíos sanitarios que desvían energía al sistema inmune, o estrés ambiental. Para la gestión de costos, esta métrica es fundamental, ya que una productividad negativa significa que la principal inversión (el alimento) rinde menos de su potencial, lo que infla directamente el costo por kilogramo de carne producido y permite a la gerencia diagnosticar problemas de forma precisa.
     La productividad es un indicador clave que mide la eficiencia con la que un lote convierte el alimento en masa corporal, 
     comparado con su potencial genético. Una baja productividad es una señal de alerta crítica; significa que cada kilogramo 
     de alimento rinde menos de lo esperado, lo que **infla directamente el costo final por kilo**.
