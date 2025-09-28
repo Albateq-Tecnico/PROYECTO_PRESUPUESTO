@@ -1,4 +1,4 @@
-# Contenido COMPLETO y CORREGIDO para: 1_Presupuesto_Principal.py
+# Contenido COMPLETO y FINAL para: 1_Presupuesto_Principal.py
 
 import streamlit as st
 import pandas as pd
@@ -10,11 +10,11 @@ from utils import load_data, clean_numeric_column, calcular_peso_estimado, style
 
 st.set_page_config(
     page_title="Presupuesto Avícola",
-    page_icon="log_PEQ.png", 
+    page_icon="pollito_tapabocas.ico", 
     layout="wide",
 )
 
-# --- CORRECCIÓN DE RUTA ---
+# --- CORRECCIÓN DE RUTA: Como este archivo está en la raíz, solo necesita un .parent ---
 BASE_DIR = Path(__file__).resolve().parent
 
 # --- La carga de datos ahora funcionará correctamente ---
@@ -167,7 +167,6 @@ else:
             factor_kg = 1 if st.session_state.unidades_calculo == "Kilos" else 40
             costos_kg = [st.session_state.val_pre_iniciador, st.session_state.val_iniciador, st.session_state.val_engorde, st.session_state.val_retiro]
             
-            # ORDEN CORRECTO: 1. Definir 'costos', 2. Usar 'costos'
             costos = [(u * factor_kg) * c for u, c in zip(unidades, costos_kg)]
             costo_total_alimento = sum(costos)
 
@@ -294,7 +293,7 @@ else:
             st.markdown("---")
             st.markdown("""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja. La utilización de los resultados es de su exclusiva responsabilidad. No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada.
+            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
             </div>
             <div style="text-align: center; margin-top: 15px;">
             Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
