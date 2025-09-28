@@ -199,11 +199,20 @@ else:
                 
                 # Guardamos los resultados base en la sesión para que los usen los simuladores
                 st.session_state['resultados_base'] = {
+                    # --- Valores base para simuladores ---
                     "costo_alimento_kilo": costo_alimento_kilo,
                     "costo_pollito_kilo": costo_pollito_kilo,
                     "costo_otros_kilo": costo_otros_kilo,
                     "costo_total_por_kilo": costo_total_kilo,
-                    "conversion_alimenticia": conversion_alimenticia
+                    "conversion_alimenticia": conversion_alimenticia,
+                    "kilos_totales_producidos": kilos_totales_producidos,
+                    "consumo_total_kg": consumo_total_kg,
+                    "costo_total_alimento": costo_total_alimento,
+                    "costo_total_pollitos": costo_total_pollitos,
+                    "costo_total_otros": costo_total_otros,
+                    "costo_total_lote": costo_total_lote,
+                    "dia_obj": dia_obj,
+                    "aves_producidas": aves_producidas
                 }
 
                 costo_map = {
