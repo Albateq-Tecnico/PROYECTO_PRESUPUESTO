@@ -26,6 +26,26 @@ st.title("📖 Guía de Costeo del Pollo de Engorde")
 st.subheader("Análisis de Costos y Métricas de Rendimiento: De la Granja al Sacrificio")
 st.markdown("---")
 
+
+try:
+    # Construir la ruta completa al archivo PDF
+    pdf_path = BASE_DIR / "ARCHIVOS" / "Costeo_Pollo_Engorde_ Granja_a_Sacrificio.pdf"
+    
+    # Leer el archivo en modo binario ('rb')
+    with open(pdf_path, "rb") as pdf_file:
+        pdf_bytes = pdf_file.read()
+
+    # Crear el botón de descarga en el área principal
+    st.download_button(
+        label="📥 Descargar Guía Completa en PDF",
+        data=pdf_bytes,
+        file_name="Guia_Costeo_Pollo_Engorde.pdf", # Nombre que tendrá el archivo al descargar
+        mime='application/pdf'
+    )
+except FileNotFoundError:
+    st.warning("El archivo PDF de la guía no se encontró en la carpeta ARCHIVOS/.")
+
+st.markdown("---")
 # --- 1. ESTRUCTURA DE COSTOS ---
 st.header("1. Estructura de Costos de Producción")
 col1, col2 = st.columns([1.5, 1])
