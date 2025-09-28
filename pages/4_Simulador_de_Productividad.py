@@ -1,13 +1,25 @@
-# Contenido COMPLETO para: pages/4_Simulador_de_Productividad.py
+# Contenido COMPLETO y FINAL para: pages/4_Simulador_de_Productividad.py
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
+from utils import load_data, reconstruir_tabla_base
 
 st.set_page_config(page_title="Simulador de Productividad", page_icon="⚙️", layout="wide")
 
 st.title("⚙️ Simulador de Eficiencia Productiva")
+
+# --- TEXTO EXPLICATIVO AÑADIDO ---
+st.info(
+    """
+    La productividad es un indicador clave que mide la eficiencia con la que un lote convierte el alimento en masa corporal, 
+    comparado con su potencial genético. Una baja productividad es una señal de alerta crítica; significa que cada kilogramo 
+    de alimento rinde menos de lo esperado, lo que **infla directamente el costo final por kilo**. Esta ineficiencia puede 
+    ser causada por factores como la calidad del alimento, desafíos sanitarios o estrés ambiental en la granja.
+    """
+)
 
 # --- Validar que el presupuesto principal se ha ejecutado ---
 if 'resultados_base' not in st.session_state:
@@ -17,20 +29,17 @@ if 'resultados_base' not in st.session_state:
 try:
     # --- Extraer resultados base de la sesión ---
     resultados_base = st.session_state['resultados_base']
-    productividad_base_perc = st.session_state.get('productividad', 100.0) # Productividad original
+    productividad_base_perc = st.session_state.get('productividad', 100.0)
     
-    # Costos totales del lote, que son fijos para esta simulación
-    costo_total_alimento = resultados_base.get('costo_alimento_kilo', 0) * resultados_base.get('kilos_totales_producidos', 0)
-    costo_total_pollitos = resultados_base.get('costo_pollito_kilo', 0) * resultados_base.get('kilos_totales_producidos', 0)
-    costo_total_otros = resultados_base.get('costo_otros_kilo', 0) * resultados_base.get('kilos_totales_producidos', 0)
+    costo_total_alimento = resultados_base.get('costo_total_alimento', 0)
+    costo_total_pollitos = resultados_base.get('costo_total_pollitos', 0)
+    costo_total_otros = resultados_base.get('costo_total_otros', 0)
     costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
 
-    # Consumo total de alimento, también fijo
-    consumo_total_kg = resultados_base.get('conversion_alimenticia', 0) * resultados_base.get('kilos_totales_producidos', 0)
+    consumo_total_kg = resultados_base.get('consumo_total_kg', 0)
     
-    # --- CORRECCIÓN LÓGICA: Calcular el potencial de kilos al 100% de productividad ---
     kilos_base_ajustados = resultados_base.get('kilos_totales_producidos', 0)
-    if productividad_base_perc == 0: # Evitar división por cero
+    if productividad_base_perc == 0:
         st.error("La productividad base no puede ser cero.")
         st.stop()
     kilos_potenciales_100 = kilos_base_ajustados / (productividad_base_perc / 100.0)
@@ -39,10 +48,7 @@ try:
     # --- 1. Simulador Interactivo de Productividad ---
     # =============================================================================
     st.header("1. Simulador Interactivo de Productividad")
-    st.write("""
-    Ajusta el slider para simular cómo una variación en la productividad general afecta tus costos. 
-    Una menor productividad significa que produces **menos kilos de carne** con los **mismos costos de insumos**, impactando la eficiencia.
-    """)
+    st.write("Ajusta el slider para simular cómo una variación en la productividad general afecta tus costos.")
 
     productividad_sim_perc = st.slider(
         "Seleccione la Productividad (%) a simular", 
@@ -127,7 +133,7 @@ try:
         .set_properties(**{'text-align': 'center'})
     )
 
-    st.line_chart(df_sensibilidad.set_index("Productividad (%)")[['Conversión', 'Costo Total/Kilo']])
+    # --- GRÁFICO DE LÍNEAS ELIMINADO ---
 
     # =============================================================================
     # --- 3. Visualización de la Estructura de Costos ---
@@ -142,7 +148,8 @@ try:
     df_porcentaje = df_estructura.div(df_estructura.sum(axis=1), axis=0) * 100
     
     fig, ax = plt.subplots()
-    colores = ['#2E7D32', '#66BB6A', '#A5D6A7']
+    # --- COLORES ESTANDARIZADOS ---
+    colores = ['#2E7D32', '#66BB6A', '#A5D6A7'] # Paleta de verdes
     df_porcentaje.plot(kind='bar', stacked=True, ax=ax, color=colores)
 
     ax.set_ylabel("Participación en el Costo por Kilo")
