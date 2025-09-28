@@ -38,16 +38,7 @@ df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
 
-# --- Encabezado de la Aplicación ---
 
-st.info("👈 **Para empezar, despliegue el Panel de Control en la esquina superior izquierda** para introducir los datos de la granja.")
-
-if logo:
-    st.image(logo, width=150)
-
-st.title("ALBATEQ S. A. - Dirección Técnica")
-st.subheader("Presupuesto Avícola")
-st.markdown("---")
 
 # --- Barra Lateral de Entradas (Inputs) ---
 
