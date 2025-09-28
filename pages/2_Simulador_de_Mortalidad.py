@@ -6,7 +6,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcular_curva_mortalidad
+from PIL import Image
 
+
+# --- LOGO EN SIDEBAR ---
+# Esta ruta sube dos niveles para encontrar la carpeta principal del proyecto
+BASE_DIR = Path(__file__).resolve().parent.parent 
+try:
+    logo = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+    st.sidebar.image(logo, width=150)
+except Exception:
+    st.sidebar.warning("Logo no encontrado.")
+st.sidebar.markdown("---")
 st.set_page_config(page_title="Análisis de Mortalidad", page_icon="💀", layout="wide")
 
 # --- FUNCIÓN DE CÁLCULO REFACTORIZADA ---
