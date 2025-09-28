@@ -11,23 +11,19 @@ st.set_page_config(page_title="Simulador de Productividad", page_icon="⚙️", 
 
 st.title("⚙️ Simulador de Eficiencia Productiva")
 
-# --- TEXTO EXPLICATIVO AÑADIDO ---
 st.info(
     """
     La productividad es un indicador clave que mide la eficiencia con la que un lote convierte el alimento en masa corporal, 
     comparado con su potencial genético. Una baja productividad es una señal de alerta crítica; significa que cada kilogramo 
-    de alimento rinde menos de lo esperado, lo que **infla directamente el costo final por kilo**. Esta ineficiencia puede 
-    ser causada por factores como la calidad del alimento, desafíos sanitarios o estrés ambiental en la granja.
+    de alimento rinde menos de lo esperado, lo que **infla directamente el costo final por kilo**.
     """
 )
 
-# --- Validar que el presupuesto principal se ha ejecutado ---
 if 'resultados_base' not in st.session_state:
     st.warning("👈 Por favor, ejecuta un cálculo en la página '1_Presupuesto_Principal' primero.")
     st.stop()
 
 try:
-    # --- Extraer resultados base de la sesión ---
     resultados_base = st.session_state['resultados_base']
     productividad_base_perc = st.session_state.get('productividad', 100.0)
     
@@ -132,37 +128,46 @@ try:
         .background_gradient(cmap='Reds', subset=['Costo Total/Kilo', 'Conversión'])
         .set_properties(**{'text-align': 'center'})
     )
-
-    # --- GRÁFICO DE LÍNEAS ELIMINADO ---
-
+    
     # =============================================================================
-    # --- 3. Visualización de la Estructura de Costos ---
+    # --- 3. Visualización del Impacto de la Productividad en los Costos ---
     # =============================================================================
     st.markdown("---")
-    st.header("3. Estructura de Costos por Productividad")
-    st.write("El gráfico muestra cómo cambia la participación porcentual de cada componente en el costo total.")
+    st.header("3. Impacto de la Productividad en el Costo por Kilo")
+    st.write("""
+    Este gráfico muestra cómo el costo total por kilo y sus componentes aumentan a medida que disminuye la eficiencia productiva del lote.
+    """)
 
-    df_estructura = df_sensibilidad.set_index("Productividad (%)")[[
-        "Costo Alimento/Kilo", "Costo Pollito/Kilo", "Costo Otros/Kilo"
-    ]]
-    df_porcentaje = df_estructura.div(df_estructura.sum(axis=1), axis=0) * 100
+    df_chart = df_sensibilidad.set_index("Productividad (%)")
     
-    fig, ax = plt.subplots()
-    # --- COLORES ESTANDARIZADOS ---
-    colores = ['#2E7D32', '#66BB6A', '#A5D6A7'] # Paleta de verdes
-    df_porcentaje.plot(kind='bar', stacked=True, ax=ax, color=colores)
-
-    ax.set_ylabel("Participación en el Costo por Kilo")
+    # Seleccionamos las columnas de costos por kilo
+    df_cost_lines = df_chart[[
+        "Costo Alimento/Kilo", 
+        "Costo Pollito/Kilo", 
+        "Costo Otros/Kilo",
+        "Costo Total/Kilo"
+    ]]
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Graficar las líneas con un marcador en cada punto
+    df_cost_lines.plot(kind='line', ax=ax, marker='o')
+    
+    # Formatear el eje Y como moneda
+    from matplotlib.ticker import StrMethodFormatter
+    ax.yaxis.set_major_formatter(StrMethodFormatter('${x:,.0f}'))
+    
+    # Mejorar la visualización
+    ax.set_ylabel("Costo por Kilo ($)")
     ax.set_xlabel("Productividad (%)")
+    ax.set_title("Sensibilidad del Costo por Kilo a la Productividad")
     ax.legend(title="Componente de Costo")
-    ax.yaxis.set_major_formatter(plt.matplotlib.ticker.PercentFormatter(100))
-    plt.xticks(rotation=0)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    
+    # Invertir el eje X para que la "caída" de productividad se lea de izquierda a derecha
+    ax.invert_xaxis()
+    
     plt.tight_layout()
-
-    for container in ax.containers:
-        labels = [f'{v:.0f}%' if v > 5 else '' for v in container.datavalues]
-        ax.bar_label(container, labels=labels, label_type='center', color='white', weight='bold')
-
     st.pyplot(fig)
 
 except Exception as e:
