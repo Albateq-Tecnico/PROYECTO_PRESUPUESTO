@@ -134,5 +134,5 @@ with adv2:
     Esta métrica de diagnóstico cuantifica la brecha entre el rendimiento real y el potencial 
     genético para un nivel de consumo específico.
     - **Valor Positivo:** El lote superó las expectativas.
-    - **Valor Negativo:** Señal de alerta que indica problemas de manejo, sanidad o calidad de alimento.
+    - **Valor Negativo:** Señal de alerta que indica problemas de manejo, infraestructura, sanidad o calidad de alimento.
     """)
