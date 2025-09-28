@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 import matplotlib.pyplot as plt
 from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df
-from PIL import Image # <-- CORRECCIÓN: Se añadió la importación que faltaba
+from PIL import Image
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -26,6 +26,7 @@ st.set_page_config(
 df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
 df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
 df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
+
 
 # =============================================================================
 # --- PANEL LATERAL DE ENTRADAS (SIDEBAR) ---
