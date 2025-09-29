@@ -293,7 +293,9 @@ else:
             st.markdown("---")
             st.markdown("""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <b>Nota de Responsabilidad:</b> Esta es una herramienta de apoyo para uso en granja...
+            <b>Nota de Responsabilidad:</b> "Esta es una herramienta de apoyo para uso en granja. "
+    "La utilización de los resultados es de su exclusiva responsabilidad. "
+    "No sustituye la asesoría profesional y Albateq S.A. no se hace responsable por las decisiones tomadas con base en la información aquí presentada."...
             </div>
             <div style="text-align: center; margin-top: 15px;">
             Desarrollado por la Dirección Técnica de Albateq | dtecnico@albateq.com
