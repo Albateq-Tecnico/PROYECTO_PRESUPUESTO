@@ -1,4 +1,4 @@
-# Contenido COMPLETO para: pages/6_Optimizacion_costo.py
+# Contenido COMPLETO y CORREGIDO para la página de Optimización
 
 import streamlit as st
 import pandas as pd
@@ -31,26 +31,26 @@ if 'aves_programadas' not in st.session_state or st.session_state.aves_programad
 
 # --- Cargar y reconstruir datos base ---
 try:
-    # --- Cargar datos ---
     df_referencia = load_data(BASE_DIR / "ARCHIVOS" / "ROSS_COBB_HUBBARD_2025.csv")
     df_coeffs = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso.csv")
     df_coeffs_15 = load_data(BASE_DIR / "ARCHIVOS" / "Cons_Acum_Peso_15.csv")
     
-    # Reconstruir la curva de crecimiento completa (sin truncar)
     tabla_base_completa = reconstruir_tabla_base(st.session_state, df_referencia, df_coeffs, df_coeffs_15)
 
     if tabla_base_completa is None:
         st.error("No se pudieron generar los datos base para la simulación.")
         st.stop()
     
-    # Limitar la tabla a un máximo de 50 días para el análisis
     tabla_base_completa = tabla_base_completa[tabla_base_completa['Dia'] <= 50].copy()
 
+    # --- CORRECCIÓN: Se define la variable que faltaba ANTES del bucle ---
+    df_interp = tabla_base_completa.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
+    consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
+    # --- FIN DE LA CORRECCIÓN ---
+
     # --- BUCLE DE OPTIMIZACIÓN ---
-    # Iterar día por día para calcular los KPIs en cada punto
     resultados_optimizacion = []
     
-    # Pre-calcular costos fijos del lote
     costo_total_pollitos = st.session_state.aves_programadas * st.session_state.costo_pollito
     costo_total_otros = st.session_state.aves_programadas * st.session_state.otros_costos_ave
     costos_kg_map = {
@@ -61,11 +61,10 @@ try:
     for dia in range(1, len(tabla_base_completa) + 1):
         tabla_dia = tabla_base_completa.iloc[:dia].copy()
         
-        # Asignar Fase de Alimento para la tabla truncada
         consumo_actual_ave = tabla_dia['Cons_Acum_Ajustado'].iloc[-1]
         limite_pre = st.session_state.pre_iniciador
         limite_ini = st.session_state.pre_iniciador + st.session_state.iniciador
-        limite_ret = consumo_total_objetivo_ave - st.session_state.retiro if st.session_state.retiro > 0 else np.inf # Usamos el del objetivo final
+        limite_ret = consumo_total_objetivo_ave - st.session_state.retiro if st.session_state.retiro > 0 else np.inf
         conditions = [
             tabla_dia['Cons_Acum_Ajustado'] <= limite_pre,
             tabla_dia['Cons_Acum_Ajustado'].between(limite_pre, limite_ini, inclusive='right'),
@@ -74,13 +73,11 @@ try:
         choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
         tabla_dia['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
         
-        # Cálculos de ese día
-        mortalidad_total_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
-        mortalidad_diaria_prom = mortalidad_total_aves / st.session_state.peso_objetivo # Usamos el día objetivo final para una mortalidad lineal consistente
+        total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
+        dia_ciclo_final = (tabla_base_completa['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
+        dia_obj_final = tabla_base_completa.loc[dia_ciclo_final, 'Dia'] if dia_ciclo_final else len(tabla_base_completa)
+        mortalidad_diaria_prom = total_mortalidad_aves / dia_obj_final if dia_obj_final > 0 else 0
         
-        # CORRECCIÓN: el día objetivo para la mortalidad debe ser el final del ciclo, no el día actual del bucle
-        dia_ciclo_final = len(tabla_base_completa)
-        mortalidad_diaria_prom = total_mortalidad_aves / dia_ciclo_final if dia_ciclo_final > 0 else 0
         tabla_dia['Mortalidad_Acumulada'] = (tabla_dia['Dia'] * mortalidad_diaria_prom).apply(np.floor)
         tabla_dia['Saldo'] = st.session_state.aves_programadas - tabla_dia['Mortalidad_Acumulada']
 
@@ -99,7 +96,6 @@ try:
 
             costo_total_lote = costo_total_alimento + costo_total_pollitos + costo_total_otros
             
-            # --- Almacenar resultados para la tabla ---
             resultados_optimizacion.append({
                 'Dia': dia,
                 'Fecha': st.session_state.fecha_llegada + timedelta(days=dia - 1),
@@ -120,7 +116,6 @@ try:
     if resultados_optimizacion:
         df_opt = pd.DataFrame(resultados_optimizacion)
         
-        # --- ENCONTRAR EL PUNTO ÓPTIMO ---
         idx_min_costo = df_opt['Total Costo x Kilo'].idxmin()
         dia_optimo = df_opt.loc[idx_min_costo, 'Dia']
         costo_optimo = df_opt.loc[idx_min_costo, 'Total Costo x Kilo']
@@ -141,14 +136,10 @@ try:
         st.dataframe(
             df_opt.style
             .format({
-                'Fecha': '{:%Y-%m-%d}',
-                '% Mortalidad Acumulada': '{:.2%}',
-                '% Consumo vs Consumo Guia': '{:.2%}',
-                'Conversion': '{:.3f}',
-                'Diferencia Genetica': '{:+.0f} gr',
-                'Costo Alimento x Kilo': '${:,.2f}',
-                'Costo Pollito x Kilo': '${:,.2f}',
-                'Otros Costos x Kilo': '${:,.2f}',
+                'Fecha': '{:%Y-%m-%d}', '% Mortalidad Acumulada': '{:.2%}',
+                '% Consumo vs Consumo Guia': '{:.2%}', 'Conversion': '{:.3f}',
+                'Diferencia Genetica': '{:+.0f} gr', 'Costo Alimento x Kilo': '${:,.2f}',
+                'Costo Pollito x Kilo': '${:,.2f}', 'Otros Costos x Kilo': '${:,.2f}',
                 'Total Costo x Kilo': '${:,.2f}'
             })
             .apply(highlight_min, subset=['Total Costo x Kilo'])
@@ -158,13 +149,11 @@ try:
         
         fig, ax = plt.subplots(figsize=(12, 6))
         
-        # Graficar líneas de costos
         ax.plot(df_opt['Dia'], df_opt['Costo Alimento x Kilo'], label='Costo Alimento/Kilo', color='green')
         ax.plot(df_opt['Dia'], df_opt['Costo Pollito x Kilo'], label='Costo Pollito/Kilo', color='orange')
         ax.plot(df_opt['Dia'], df_opt['Otros Costos x Kilo'], label='Otros Costos/Kilo', color='gray')
         ax.plot(df_opt['Dia'], df_opt['Total Costo x Kilo'], label='Costo TOTAL/Kilo', color='red', linewidth=3)
 
-        # Marcar el punto óptimo
         ax.plot(dia_optimo, costo_optimo, 'o', markersize=12, color='blue', label=f"Punto Óptimo (Día {dia_optimo})")
         ax.annotate(
             f"Costo Mínimo: ${costo_optimo:,.0f}\nPeso: {peso_optimo:,.0f} gr",
@@ -174,16 +163,14 @@ try:
             bbox=dict(boxstyle="round,pad=0.3", fc="yellow", ec="black", lw=1, alpha=0.8)
         )
         
-        # Formatear gráfico
         from matplotlib.ticker import StrMethodFormatter
         ax.yaxis.set_major_formatter(StrMethodFormatter('${x:,.0f}'))
         ax.set_xlabel("Día del Ciclo")
         ax.set_ylabel("Costo por Kilo Producido ($)")
-        ax.set_title("Evolución del Costo por Kilo a lo Largo del Ciclo")
+        ax.set_title("Evolución del Costo por Kilo a Lo Largo del Ciclo")
         ax.legend()
         ax.grid(True, linestyle='--', alpha=0.6)
         
-        # Añadir marca de agua
         try:
             from matplotlib.offsetbox import OffsetImage, AnnotationBbox
             logo_img_f = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
@@ -199,5 +186,5 @@ try:
         st.warning("No se pudieron generar los datos para la optimización.")
 
 except Exception as e:
-    st.error(f"Ocurrió un error al procesar la página de optimización.")
+    st.error("Ocurrió un error al procesar la página de optimización.")
     st.exception(e)
