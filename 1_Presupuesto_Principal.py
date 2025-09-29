@@ -41,7 +41,7 @@ except Exception:
 st.sidebar.subheader("Datos del Lote")
 st.session_state.aves_programadas = st.sidebar.number_input("# Aves Programadas", 0, value=10000, step=1000)
 st.session_state.fecha_llegada = st.sidebar.date_input("Fecha de llegada", date.today())
-st.session_state.costo_pollito = st.sidebar.number_input("Costo del Pollito ($/ave)", 0.0, 5000.0, 2000.0, format="%.2f")
+st.session_state.costo_pollito = st.sidebar.number_input("Costo del Pollito ($/ave)", 0.0, 5000.0, 2600.0, format="%.2f")
 
 st.sidebar.subheader("Línea Genética")
 razas = sorted(df_referencia['RAZA'].unique()) if df_referencia is not None else ["ROSS 308 AP", "COBB", "HUBBARD", "ROSS"]
@@ -77,7 +77,7 @@ st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciado
 st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2150.0, format="%.2f")
 st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2100.0, format="%.2f")
 st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2050.0, format="%.2f")
-st.session_state.otros_costos_ave = st.sidebar.number_input("Otros Costos Estimados ($/ave)", 0.0, 10000.0, 1500.0, format="%.2f", help="Incluye mano de obra, sanidad, energía, depreciación, etc.")
+st.session_state.otros_costos_ave = st.sidebar.number_input("Otros Costos Estimados ($/ave)", 0.0, 10000.0, 2500.0, format="%.2f", help="Incluye mano de obra, sanidad, energía, depreciación, etc.")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("Generar Presupuesto", type="primary", use_container_width=True):
