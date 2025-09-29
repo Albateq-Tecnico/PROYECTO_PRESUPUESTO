@@ -21,6 +21,8 @@ Calidad del Alimento: Una densidad nutricional inferior a la especificada.
 
 Sanidad del Lote: Desafíos sanitarios, incluso subclínicos, que desvían nutrientes del crecimiento hacia la respuesta inmune.
 
+Infraestructura de la Granja: Instalaciones con obsolescencia, pobre aislamiento o sistemas de ventilación deficientes que limitan la capacidad de mitigar el estrés ambiental, obligando a las aves a desviar energía del crecimiento hacia la termorregulación.
+
 Manejo y Ambiente: Factores de estrés como temperaturas inadecuadas, mala calidad del aire o alta densidad.
 
 Desde la perspectiva de costos, esta métrica es fundamental. Una productividad negativa significa que cada kilogramo de alimento —la principal inversión del ciclo— rinde menos de su potencial, lo que infla directamente el costo final por kilogramo de carne producido y permite a la gerencia diagnosticar el origen del problema con mayor precisión.
