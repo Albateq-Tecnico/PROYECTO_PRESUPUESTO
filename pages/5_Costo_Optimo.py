@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from PIL import Image
+from datetime import timedelta # <-- CORRECCIÓN: Se añadió la importación que faltaba
 from utils import load_data, reconstruir_tabla_base
 
 st.set_page_config(page_title="Optimizador de Costos", page_icon="💡", layout="wide")
@@ -43,11 +44,9 @@ try:
     
     tabla_base_completa = tabla_base_completa[tabla_base_completa['Dia'] <= 50].copy()
 
-    # --- CORRECCIÓN: Se define la variable que faltaba ANTES del bucle ---
     df_interp = tabla_base_completa.drop_duplicates(subset=['Peso_Estimado']).sort_values('Peso_Estimado')
     consumo_total_objetivo_ave = np.interp(st.session_state.peso_objetivo, df_interp['Peso_Estimado'], df_interp['Cons_Acum_Ajustado'])
-    # --- FIN DE LA CORRECCIÓN ---
-
+    
     # --- BUCLE DE OPTIMIZACIÓN ---
     resultados_optimizacion = []
     
@@ -58,6 +57,9 @@ try:
         'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
     }
 
+    dia_ciclo_final_objetivo = (tabla_base_completa['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
+    dia_obj_final = tabla_base_completa.loc[dia_ciclo_final_objetivo, 'Dia'] if dia_ciclo_final_objetivo else len(tabla_base_completa)
+    
     for dia in range(1, len(tabla_base_completa) + 1):
         tabla_dia = tabla_base_completa.iloc[:dia].copy()
         
@@ -74,8 +76,6 @@ try:
         tabla_dia['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
         
         total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
-        dia_ciclo_final = (tabla_base_completa['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
-        dia_obj_final = tabla_base_completa.loc[dia_ciclo_final, 'Dia'] if dia_ciclo_final else len(tabla_base_completa)
         mortalidad_diaria_prom = total_mortalidad_aves / dia_obj_final if dia_obj_final > 0 else 0
         
         tabla_dia['Mortalidad_Acumulada'] = (tabla_dia['Dia'] * mortalidad_diaria_prom).apply(np.floor)
@@ -186,5 +186,5 @@ try:
         st.warning("No se pudieron generar los datos para la optimización.")
 
 except Exception as e:
-    st.error("Ocurrió un error al procesar la página de optimización.")
+    st.error(f"Ocurrió un error al procesar la página de optimización.")
     st.exception(e)
