@@ -1,12 +1,11 @@
-# Contenido COMPLETO y FINAL para: 1_Presupuesto_Principal.py
-
 import streamlit as st
 import pandas as pd
 import numpy as np
-from pathlib import Path
-from PIL import Image
 from datetime import date, timedelta
-from utils import load_data, clean_numeric_column, calcular_peso_estimado, calcular_curva_mortalidad, reconstruir_tabla_base, style_kpi_df
+from pathlib import Path
+import matplotlib.pyplot as plt  # <-- CORRECCIÓN: Se restauró la importación que faltaba
+from utils import load_data, clean_numeric_column, calcular_peso_estimado, style_kpi_df, reconstruir_tabla_base, calcular_curva_mortalidad
+from PIL import Image
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -48,8 +47,8 @@ st.session_state.raza_seleccionada = st.sidebar.selectbox("RAZA", razas)
 st.session_state.sexo_seleccionado = st.sidebar.selectbox("SEXO", sexos)
 
 st.sidebar.subheader("Objetivos del Lote")
-st.session_state.peso_objetivo = st.sidebar.number_input("Peso Objetivo (gramos)", 0, value=2500, step=50)
-st.session_state.mortalidad_objetivo = st.sidebar.number_input("Mortalidad Objetivo %", 0.0, 100.0, 5.0, 0.5, format="%.2f")
+st.session_state.peso_objetivo = st.number_input("Peso Objetivo (gramos)", 0, value=2500, step=50)
+st.session_state.mortalidad_objetivo = st.number_input("Mortalidad Objetivo %", 0.0, 100.0, 5.0, 0.5, format="%.2f")
 
 st.sidebar.subheader("Condiciones de Granja")
 st.session_state.tipo_granja = st.sidebar.radio("Tipo de GRANJA", ["TUNEL", "MEJORADA", "NATURAL"], index=2)
@@ -105,6 +104,7 @@ else:
         try:
             st.header("Resultados del Presupuesto")
             
+            # 1. CÁLCULOS BASE
             tabla_filtrada = reconstruir_tabla_base(st.session_state, df_referencia, df_coeffs, df_coeffs_15)
 
             if tabla_filtrada is None or tabla_filtrada.empty:
@@ -124,10 +124,14 @@ else:
             ]
             choices = ['Pre-iniciador', 'Iniciador', 'Retiro']
             tabla_filtrada['Fase_Alimento'] = np.select(conditions, choices, default='Engorde')
-
-            dia_obj = tabla_filtrada['Dia'].iloc[-1]
+            
+            closest_idx = (tabla_filtrada['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
+            
+            # 2. CÁLCULOS DE MORTALIDAD Y CONSUMO (ESCENARIO BASE: LINEAL)
+            dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
             total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
             mortalidad_acum = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, "Lineal (Uniforme)", 50)
+            tabla_filtrada = tabla_filtrada.iloc[:int(dia_obj)] # Asegurarse de que la tabla tiene la misma longitud que la curva de mortalidad
             tabla_filtrada['Mortalidad_Acumulada'] = mortalidad_acum
             tabla_filtrada['Saldo'] = st.session_state.aves_programadas - tabla_filtrada['Mortalidad_Acumulada']
             tabla_filtrada['Fecha'] = tabla_filtrada['Dia'].apply(lambda d: st.session_state.fecha_llegada + timedelta(days=d - 1))
@@ -143,15 +147,16 @@ else:
                 tabla_filtrada[daily_col] = np.ceil((tabla_filtrada['Cons_Diario_Ave_gr'] * tabla_filtrada['Saldo']) / 40000)
             tabla_filtrada[total_col] = tabla_filtrada[daily_col].cumsum()
             
+            # 3. VISUALIZACIONES
             st.markdown(f"### Tabla de Proyección para {st.session_state.aves_programadas:,.0f} aves ({st.session_state.raza_seleccionada} - {st.session_state.sexo_seleccionado})")
             
             columnas_a_mostrar = ['Dia', 'Fecha', 'Saldo', 'Cons_Acum_Ajustado', 'Peso_Estimado', daily_col, total_col, 'Fase_Alimento']
             format_dict = {col: "{:,.0f}" for col in columnas_a_mostrar if col not in ['Fecha', 'Fase_Alimento']}
             styler = tabla_filtrada[columnas_a_mostrar].style.format(format_dict)
-            closest_idx_display = tabla_filtrada['Dia'].iloc[-1] - 1
-            styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx_display else '' for _ in row], axis=1)
+            styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx else '' for _ in row], axis=1)
             st.dataframe(styler.hide(axis="index"), use_container_width=True)
             
+            # 4. ANÁLISIS ECONÓMICO
             st.subheader("Resumen del Presupuesto de Alimento")
             consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col].sum()
             
@@ -214,7 +219,8 @@ else:
                     "costo_otros_mortalidad_total": aves_muertas_total * st.session_state.otros_costos_ave,
                     "costo_alimento_mortalidad_kilo": costo_alimento_desperdiciado / kilos_totales_producidos,
                     "costo_pollito_mortalidad_kilo": costo_pollitos_perdidos / kilos_totales_producidos,
-                    "costo_otros_mortalidad_kilo": (aves_muertas_total * st.session_state.otros_costos_ave) / kilos_totales_producidos
+                    "costo_otros_mortalidad_kilo": (aves_muertas_total * st.session_state.otros_costos_ave) / kilos_totales_producidos,
+                    "tabla_proyeccion": tabla_filtrada
                 }
 
                 st.subheader("Indicadores de Eficiencia Clave")
