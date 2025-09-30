@@ -1,4 +1,4 @@
-# Contenido COMPLETO y FINAL para: pages/2_Simulador_de_Mortalidad.py
+# Contenido COMPLETO y CORREGIDO para: pages/2_Simulador_de_Mortalidad.py
 
 import streamlit as st
 import pandas as pd
@@ -21,9 +21,6 @@ st.sidebar.markdown("---")
 
 # --- FUNCIÓN DE CÁLCULO ---
 def calcular_escenario_completo(tabla_base, tipo_mortalidad, porcentaje_curva, mortalidad_objetivo_porc, st_session_state):
-    """
-    Toma una tabla base y parámetros de mortalidad, y devuelve un diccionario con KPIs y la tabla calculada.
-    """
     tabla_escenario = tabla_base.copy()
     
     dia_obj = tabla_escenario['Dia'].iloc[-1]
@@ -58,30 +55,18 @@ def calcular_escenario_completo(tabla_base, tipo_mortalidad, porcentaje_curva, m
     peso_obj_final = tabla_escenario['Peso_Estimado'].iloc[-1]
     kilos_totales_producidos = (aves_producidas * peso_obj_final) / 1000 if aves_producidas > 0 else 0
     
+    consumo_total_kg_escenario = tabla_escenario[daily_col_name].sum() * factor_kg
+
     resultados_kpi = {}
     if kilos_totales_producidos > 0:
-        tabla_escenario['Costo_Kg_Dia'] = tabla_escenario['Fase_Alimento'].map(costos_kg_map)
-        tabla_escenario['Costo_Alimento_Diario_Ave'] = (tabla_escenario['Cons_Diario_Ave_gr'] / 1000) * tabla_escenario['Costo_Kg_Dia']
-        tabla_escenario['Costo_Alimento_Acum_Ave'] = tabla_escenario['Costo_Alimento_Diario_Ave'].cumsum()
-        tabla_escenario['Mortalidad_Diaria'] = tabla_escenario['Mortalidad_Acumulada'].diff().fillna(tabla_escenario['Mortalidad_Acumulada'].iloc[0])
-        
-        costo_alimento_desperdiciado = (tabla_escenario['Mortalidad_Diaria'] * tabla_escenario['Costo_Alimento_Acum_Ave']).sum()
-        
-        aves_muertas_total = st_session_state.aves_programadas - aves_producidas
-        costo_pollitos_perdidos = aves_muertas_total * st_session_state.costo_pollito
-        costo_otros_perdidos = aves_muertas_total * st_session_state.otros_costos_ave
-
         resultados_kpi = {
+            "mortalidad_objetivo": mortalidad_objetivo_porc,
+            "kilos_totales_producidos": kilos_totales_producidos,
+            "consumo_total_kg": consumo_total_kg_escenario,
             "costo_alimento_kilo": costo_total_alimento / kilos_totales_producidos,
             "costo_pollito_kilo": costo_total_pollitos / kilos_totales_producidos,
             "costo_otros_kilo": costo_total_otros / kilos_totales_producidos,
             "costo_total_por_kilo": costo_total_lote / kilos_totales_producidos,
-            "costo_alimento_mortalidad_total": costo_alimento_desperdiciado,
-            "costo_pollito_mortalidad_total": costo_pollitos_perdidos,
-            "costo_otros_mortalidad_total": costo_otros_perdidos,
-            "costo_alimento_mortalidad_kilo": costo_alimento_desperdiciado / kilos_totales_producidos,
-            "costo_pollito_mortalidad_kilo": costo_pollitos_perdidos / kilos_totales_producidos,
-            "costo_otros_mortalidad_kilo": costo_otros_perdidos / kilos_totales_producidos,
         }
     return resultados_kpi, tabla_escenario
 
@@ -148,21 +133,102 @@ try:
         df_comparative = pd.DataFrame(comparative_data).set_index("Concepto")
         st.dataframe(df_comparative.style.format("${:,.2f}"))
         
-        st.subheader("Desglose del Costo por Mortalidad")
-        
-        # ... (El código para la tabla de desglose de mortalidad que ya tenías) ...
-        
         # --- PASO 3: GRÁFICOS DE CURVAS DE MORTALIDAD ---
         st.markdown("---")
-        # ... (El código para los 3 gráficos de curvas de mortalidad) ...
-        
+        st.header("2. Visualización de Curvas de Mortalidad")
+        col1, col2, col3 = st.columns(3)
+
+        def plot_mortality_curve(ax, data, title):
+            data['Mortalidad_Diaria'] = data['Mortalidad_Acumulada'].diff().fillna(data['Mortalidad_Acumulada'].iloc[0])
+            ax.plot(data['Dia'], data['Saldo'], color='orange', label='Saldo de Aves')
+            ax.set_xlabel("Día")
+            ax.set_ylabel("Número de Aves", color='orange')
+            ax.tick_params(axis='y', labelcolor='orange')
+            ax.grid(True, linestyle='--', alpha=0.4)
+            ax_twin = ax.twinx()
+            ax_twin.bar(data['Dia'], data['Mortalidad_Diaria'], color='red', alpha=0.5, label='Mortalidad Diaria')
+            ax_twin.set_ylabel("Mortalidad Diaria", color='red')
+            ax_twin.tick_params(axis='y', labelcolor='red')
+            ax.set_title(title)
+
+        with col1:
+            fig1, ax1 = plt.subplots()
+            plot_mortality_curve(ax1, tabla_lineal, "Escenario Lineal")
+            st.pyplot(fig1)
+        with col2:
+            fig2, ax2 = plt.subplots()
+            plot_mortality_curve(ax2, tabla_inicio, "Mortalidad Inicial (90% en Sem 1)")
+            st.pyplot(fig2)
+        with col3:
+            fig3, ax3 = plt.subplots()
+            plot_mortality_curve(ax3, tabla_final, "Mortalidad Final (90% en últ. Sem)")
+            st.pyplot(fig3)
+
         # --- PASO 4: GRÁFICOS DE PASTEL COMPARATIVOS ---
         st.markdown("---")
-        # ... (El código para los 3 gráficos de pastel) ...
+        st.header("3. Comparación de Estructura de Costos por Kilo")
+        col_pie1, col_pie2, col_pie3 = st.columns(3)
+
+        def plot_pie_chart(ax, kpis, title):
+            sizes = [kpis["costo_alimento_kilo"], kpis["costo_pollito_kilo"], kpis["costo_otros_kilo"]]
+            labels = [f"Alimento\n${sizes[0]:,.0f}", f"Pollitos\n${sizes[1]:,.0f}", f"Otros\n${sizes[2]:,.0f}"]
+            colors = ['darkred', 'lightblue', 'lightcoral']
+            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+            ax.set_title(f"{title}\nCosto Total: ${kpis['costo_total_por_kilo']:,.0f}/Kg")
+
+        with col1:
+            fig_pie1, ax_pie1 = plt.subplots()
+            plot_pie_chart(ax_pie1, kpis_lineal, "Escenario Lineal")
+            st.pyplot(fig_pie1)
+        with col_pie2:
+            fig_pie2, ax_pie2 = plt.subplots()
+            plot_pie_chart(ax_pie2, kpis_inicio, "Mortalidad Inicial")
+            st.pyplot(fig_pie2)
+        with col3:
+            fig_pie3, ax_pie3 = plt.subplots()
+            plot_pie_chart(ax_pie3, kpis_final, "Mortalidad Final")
+            st.pyplot(fig_pie3)
         
         # --- PASO 5: ANÁLISIS DE SENSIBILIDAD A LA MORTALIDAD TOTAL ---
         st.markdown("---")
-        # ... (El código para la tabla de sensibilidad a la mortalidad) ...
+        st.header("4. Análisis de Sensibilidad al % de Mortalidad Total")
+        st.write(f"Análisis basado en el escenario de curva **Lineal**, usando la Mortalidad Objetivo de **{st.session_state.mortalidad_objetivo}%** como punto central.")
+
+        escenarios_mortalidad = [mortalidad_base + i * 0.5 for i in range(-3, 4)]
+        
+        resultados_sensibilidad = []
+        for mort_porc in escenarios_mortalidad:
+            if mort_porc >= 0:
+                kpis, _ = calcular_escenario_completo(tabla_base_final, "Lineal (Uniforme)", 50, mort_porc, st.session_state)
+                if kpis:
+                    # --- CORRECCIÓN: Se añaden los KPIs que faltaban ---
+                    kpis['Conversión Alimenticia'] = kpis['consumo_total_kg'] / kpis['kilos_totales_producidos']
+                    resultados_sensibilidad.append(kpis)
+
+        if resultados_sensibilidad:
+            df_sensibilidad = pd.DataFrame(resultados_sensibilidad)
+            df_sensibilidad_display = df_sensibilidad.rename(columns={
+                "mortalidad_objetivo": "Mortalidad Objetivo (%)",
+                "costo_alimento_kilo": "Costo Alimento / Kilo",
+                "costo_pollito_kilo": "Costo Pollito / Kilo",
+                "costo_otros_kilo": "Otros Costos / Kilo",
+                "costo_total_por_kilo": "Costo Total / Kilo"
+            })
+            
+            columnas_a_mostrar = ["Mortalidad Objetivo (%)", "Costo Alimento / Kilo", "Costo Pollito / Kilo", "Otros Costos / Kilo", "Costo Total / Kilo"]
+
+            st.dataframe(
+                df_sensibilidad_display[columnas_a_mostrar].style
+                .format({
+                    "Mortalidad Objetivo (%)": "{:.2f}%",
+                    "Costo Alimento / Kilo": "${:,.2f}",
+                    "Costo Pollito / Kilo": "${:,.2f}",
+                    "Otros Costos / Kilo": "${:,.2f}",
+                    "Costo Total / Kilo": "${:,.2f}"
+                })
+                .background_gradient(cmap='Reds', subset=['Costo Total / Kilo'])
+                .set_properties(**{'text-align': 'center'})
+            )
 
     else:
         st.warning("No se pudieron calcular los KPIs para la comparación.")
