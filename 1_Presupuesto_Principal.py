@@ -71,9 +71,9 @@ st.sidebar.markdown("_El **Engorde** se calcula por diferencia._")
 st.sidebar.subheader("Estructura de Costos Directos")
 st.session_state.unidades_calculo = st.sidebar.selectbox("Unidades de Cálculo Alimento", ["Kilos", "Bultos x 40 Kilos"])
 st.session_state.val_pre_iniciador = st.sidebar.number_input("Costo Pre-iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
-st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2150.0, format="%.2f")
-st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2100.0, format="%.2f")
-st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2050.0, format="%.2f")
+st.session_state.val_iniciador = st.sidebar.number_input("Costo Iniciador ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
+st.session_state.val_engorde = st.sidebar.number_input("Costo Engorde ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
+st.session_state.val_retiro = st.sidebar.number_input("Costo Retiro ($/Kg)", 0.0, 5200.0, 2200.0, format="%.2f")
 st.session_state.otros_costos_ave = st.sidebar.number_input("Otros Costos Estimados ($/ave)", 0.0, 10000.0, 1500.0, format="%.2f", help="Incluye mano de obra, sanidad, energía, depreciación, etc.")
 
 st.sidebar.markdown("---")
@@ -102,8 +102,9 @@ else:
         st.error("Por favor, asegúrate de que las 'Aves Programadas' y el 'Peso Objetivo' sean mayores a cero.")
     else:
         try:
-            # 1. CÁLCULOS BASE
             st.header("Resultados del Presupuesto")
+            
+            # 1. CÁLCULOS BASE
             tabla_filtrada = reconstruir_tabla_base(st.session_state, df_referencia, df_coeffs, df_coeffs_15)
 
             if tabla_filtrada is None or tabla_filtrada.empty:
@@ -131,7 +132,6 @@ else:
             total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
             mortalidad_acum = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, "Lineal (Uniforme)", 50)
             
-            # Asegurarse de que la longitud de la curva de mortalidad coincida con la longitud de la tabla
             if len(mortalidad_acum) > len(tabla_filtrada):
                 mortalidad_acum = mortalidad_acum[:len(tabla_filtrada)]
             
@@ -157,8 +157,7 @@ else:
             columnas_a_mostrar = ['Dia', 'Fecha', 'Saldo', 'Cons_Acum_Ajustado', 'Peso_Estimado', daily_col, total_col, 'Fase_Alimento']
             format_dict = {col: "{:,.0f}" for col in columnas_a_mostrar if col not in ['Fecha', 'Fase_Alimento']}
             styler = tabla_filtrada[columnas_a_mostrar].style.format(format_dict)
-            closest_idx_display = tabla_filtrada.index.get_loc(closest_idx)
-            styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx_display else '' for _ in row], axis=1)
+            styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx else '' for _ in row], axis=1)
             st.dataframe(styler.hide(axis="index"), use_container_width=True)
             
             # 4. ANÁLISIS ECONÓMICO
@@ -172,7 +171,7 @@ else:
                 'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
                 'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
             }
-            costos = [(u * factor_kg) * costos_kg_map.get(f,0) for f, u in zip(fases, unidades)]
+            costos = [(u * factor_kg) * costos_kg_map.get(f, 0) for f, u in zip(fases, unidades)]
             costo_total_alimento = sum(costos)
 
             df_resumen = pd.DataFrame({
@@ -207,7 +206,8 @@ else:
                 
                 aves_muertas_total = st.session_state.aves_programadas - aves_producidas
                 costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
-                costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
+                costo_otros_desperdiciados = aves_muertas_total * st.session_state.otros_costos_ave
+                costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado + costo_otros_desperdiciados
 
                 st.session_state['resultados_base'] = {
                     "kilos_totales_producidos": kilos_totales_producidos, "consumo_total_kg": consumo_total_kg,
@@ -219,10 +219,10 @@ else:
                     "costo_total_mortalidad": costo_desperdicio_total,
                     "costo_alimento_mortalidad_total": costo_alimento_desperdiciado,
                     "costo_pollito_mortalidad_total": costo_pollitos_perdidos,
-                    "costo_otros_mortalidad_total": aves_muertas_total * st.session_state.otros_costos_ave,
+                    "costo_otros_mortalidad_total": costo_otros_desperdiciados,
                     "costo_alimento_mortalidad_kilo": costo_alimento_desperdiciado / kilos_totales_producidos,
                     "costo_pollito_mortalidad_kilo": costo_pollitos_perdidos / kilos_totales_producidos,
-                    "costo_otros_mortalidad_kilo": (aves_muertas_total * st.session_state.otros_costos_ave) / kilos_totales_producidos,
+                    "costo_otros_mortalidad_kilo": costo_otros_desperdiciados / kilos_totales_producidos,
                     "tabla_proyeccion": tabla_filtrada
                 }
 
@@ -230,7 +230,7 @@ else:
                 kpi_cols = st.columns(3)
                 kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
                 kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
-                kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
+                kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos, alimento y otros costos perdidos.")
 
                 st.markdown("---")
                 st.subheader("Análisis de Costos Detallado")
