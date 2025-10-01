@@ -21,6 +21,9 @@ st.sidebar.markdown("---")
 
 # --- FUNCIÓN DE CÁLCULO ---
 def calcular_escenario_completo(tabla_base, tipo_mortalidad, porcentaje_curva, mortalidad_objetivo_porc, st_session_state):
+    """
+    Toma una tabla base y parámetros de mortalidad, y devuelve un diccionario con KPIs y la tabla calculada.
+    """
     tabla_escenario = tabla_base.copy()
     
     dia_obj = tabla_escenario['Dia'].iloc[-1]
