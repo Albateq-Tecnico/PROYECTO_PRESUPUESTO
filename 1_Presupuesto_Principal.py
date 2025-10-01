@@ -102,8 +102,8 @@ else:
         st.error("Por favor, asegúrate de que las 'Aves Programadas' y el 'Peso Objetivo' sean mayores a cero.")
     else:
         try:
+            # 1. CÁLCULOS BASE
             st.header("Resultados del Presupuesto")
-            
             tabla_filtrada = reconstruir_tabla_base(st.session_state, df_referencia, df_coeffs, df_coeffs_15)
 
             if tabla_filtrada is None or tabla_filtrada.empty:
@@ -126,10 +126,12 @@ else:
             
             closest_idx = (tabla_filtrada['Peso_Estimado'] - st.session_state.peso_objetivo).abs().idxmin()
             
+            # 2. CÁLCULOS DE MORTALIDAD Y CONSUMO (ESCENARIO BASE: LINEAL)
             dia_obj = tabla_filtrada.loc[closest_idx, 'Dia']
             total_mortalidad_aves = st.session_state.aves_programadas * (st.session_state.mortalidad_objetivo / 100.0)
             mortalidad_acum = calcular_curva_mortalidad(dia_obj, total_mortalidad_aves, "Lineal (Uniforme)", 50)
             
+            # Asegurarse de que la longitud de la curva de mortalidad coincida con la longitud de la tabla
             if len(mortalidad_acum) > len(tabla_filtrada):
                 mortalidad_acum = mortalidad_acum[:len(tabla_filtrada)]
             
@@ -149,14 +151,17 @@ else:
                 tabla_filtrada[daily_col] = np.ceil((tabla_filtrada['Cons_Diario_Ave_gr'] * tabla_filtrada['Saldo']) / 40000)
             tabla_filtrada[total_col] = tabla_filtrada[daily_col].cumsum()
             
+            # 3. VISUALIZACIONES
             st.markdown(f"### Tabla de Proyección para {st.session_state.aves_programadas:,.0f} aves ({st.session_state.raza_seleccionada} - {st.session_state.sexo_seleccionado})")
             
             columnas_a_mostrar = ['Dia', 'Fecha', 'Saldo', 'Cons_Acum_Ajustado', 'Peso_Estimado', daily_col, total_col, 'Fase_Alimento']
             format_dict = {col: "{:,.0f}" for col in columnas_a_mostrar if col not in ['Fecha', 'Fase_Alimento']}
             styler = tabla_filtrada[columnas_a_mostrar].style.format(format_dict)
-            styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx else '' for _ in row], axis=1)
+            closest_idx_display = tabla_filtrada.index.get_loc(closest_idx)
+            styler.apply(lambda row: ['background-color: #ffcccc' if row.name == closest_idx_display else '' for _ in row], axis=1)
             st.dataframe(styler.hide(axis="index"), use_container_width=True)
             
+            # 4. ANÁLISIS ECONÓMICO
             st.subheader("Resumen del Presupuesto de Alimento")
             consumo_por_fase = tabla_filtrada.groupby('Fase_Alimento')[daily_col].sum()
             
@@ -167,7 +172,7 @@ else:
                 'Pre-iniciador': st.session_state.val_pre_iniciador, 'Iniciador': st.session_state.val_iniciador,
                 'Engorde': st.session_state.val_engorde, 'Retiro': st.session_state.val_retiro
             }
-            costos = [(u * factor_kg) * costos_kg_map.get(f, 0) for f, u in zip(fases, unidades)]
+            costos = [(u * factor_kg) * costos_kg_map.get(f,0) for f, u in zip(fases, unidades)]
             costo_total_alimento = sum(costos)
 
             df_resumen = pd.DataFrame({
@@ -203,9 +208,6 @@ else:
                 aves_muertas_total = st.session_state.aves_programadas - aves_producidas
                 costo_pollitos_perdidos = aves_muertas_total * st.session_state.costo_pollito
                 costo_desperdicio_total = costo_pollitos_perdidos + costo_alimento_desperdiciado
-                
-                costo_otros_desperdiciados = aves_muertas_total * st.session_state.otros_costos_ave
-                costo_desperdicio_total += costo_otros_desperdiciados
 
                 st.session_state['resultados_base'] = {
                     "kilos_totales_producidos": kilos_totales_producidos, "consumo_total_kg": consumo_total_kg,
@@ -217,10 +219,10 @@ else:
                     "costo_total_mortalidad": costo_desperdicio_total,
                     "costo_alimento_mortalidad_total": costo_alimento_desperdiciado,
                     "costo_pollito_mortalidad_total": costo_pollitos_perdidos,
-                    "costo_otros_mortalidad_total": costo_otros_desperdiciados,
+                    "costo_otros_mortalidad_total": aves_muertas_total * st.session_state.otros_costos_ave,
                     "costo_alimento_mortalidad_kilo": costo_alimento_desperdiciado / kilos_totales_producidos,
                     "costo_pollito_mortalidad_kilo": costo_pollitos_perdidos / kilos_totales_producidos,
-                    "costo_otros_mortalidad_kilo": costo_otros_desperdiciados / kilos_totales_producidos,
+                    "costo_otros_mortalidad_kilo": (aves_muertas_total * st.session_state.otros_costos_ave) / kilos_totales_producidos,
                     "tabla_proyeccion": tabla_filtrada
                 }
 
@@ -228,11 +230,21 @@ else:
                 kpi_cols = st.columns(3)
                 kpi_cols[0].metric("Costo Total por Kilo", f"${costo_total_kilo:,.2f}")
                 kpi_cols[1].metric("Conversión Alimenticia", f"{conversion_alimenticia:,.3f}")
-                kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos, alimento y otros costos perdidos.")
+                kpi_cols[2].metric("Costo por Mortalidad", f"${costo_desperdicio_total:,.2f}", help="Suma del costo de los pollitos perdidos y el alimento que consumieron.")
 
                 st.markdown("---")
                 st.subheader("Análisis de Costos Detallado")
-                kpi_data = { "Métrica": [...], "Valor": [...] }
+                kpi_data = {
+                    "Métrica": [
+                        "Aves Producidas", "Kilos Totales Producidos", "Consumo / Ave (gr)", "Peso / Ave (gr)",
+                        "Costo Alimento / Kilo ($)", "Costo Pollitos / Kilo ($)", "Costo Otros / Kilo ($)", "**Costo Total / Kilo ($)**",
+                        "Costo Total Alimento ($)", "Costo Total Pollitos ($)", "Costo Total Otros ($)", "Costo por Mortalidad ($)", "**Costo Total de Producción ($)**"
+                    ], "Valor": [
+                        round(aves_producidas), round(kilos_totales_producidos), round(consumo_total_objetivo_ave), round(peso_obj_final),
+                        costo_alimento_kilo, costo_pollito_kilo, costo_otros_kilo, costo_total_kilo,
+                        costo_total_alimento, costo_total_pollitos, costo_total_otros, costo_desperdicio_total, costo_total_lote
+                    ]
+                }
                 df_kpi = pd.DataFrame(kpi_data).set_index("Métrica")
                 
                 col1, col2 = st.columns(2)
@@ -246,11 +258,33 @@ else:
                 col1_graf, col2_graf = st.columns(2)
                 with col1_graf:
                     fig, ax = plt.subplots()
-                    # ... (código del gráfico de crecimiento) ...
+                    ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso'], color='darkred', label='Peso de Referencia')
+                    ax.plot(tabla_filtrada['Dia'], tabla_filtrada['Peso_Estimado'], color='lightcoral', label='Peso Estimado')
+                    ax.plot(dia_obj, peso_obj_final, 'o', color='blue', markersize=8, label=f"Día {dia_obj:.0f}: {peso_obj_final:,.0f} gr")
+                    ax.legend()
+                    ax.set_xlabel("Día del Ciclo")
+                    ax.set_ylabel("Peso (gramos)")
+                    ax.set_title("Gráfico de Crecimiento")
+                    ax.grid(True, linestyle='--', alpha=0.6)
+                    
+                    try:
+                        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+                        logo_img_f = Image.open(BASE_DIR / "ARCHIVOS" / "log_PEQ.png")
+                        imagebox = OffsetImage(logo_img_f, zoom=0.2, alpha=0.15)
+                        ab = AnnotationBbox(imagebox, (0.95, 0.05), xycoords='axes fraction', frameon=False, box_alignment=(1, 0))
+                        ax.add_artist(ab)
+                    except Exception:
+                        pass
                     st.pyplot(fig)
 
                 with col2_graf:
-                    # ... (código del gráfico de pastel) ...
+                    sizes = [costo_alimento_kilo, costo_pollito_kilo, costo_otros_kilo]
+                    labels = [f"Alimento\n${sizes[0]:,.2f}", f"Pollitos\n${sizes[1]:,.2f}", f"Otros Costos\n${sizes[2]:,.2f}"]
+                    colors = ['darkred', 'lightblue', 'lightcoral']
+
+                    fig_pie, ax_pie = plt.subplots()
+                    ax_pie.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+                    ax_pie.set_title(f"Participación de Costos\nCosto Total: ${costo_total_kilo:,.2f}/Kg")
                     st.pyplot(fig_pie)
             else:
                 st.warning("No se pueden calcular KPIs: los kilos producidos son cero.")
@@ -260,5 +294,8 @@ else:
             st.exception(e)
         finally:
             st.markdown("---")
-            # ... (Tu nota de responsabilidad)
-            pass
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            <b>Nota de Responsabilidad:</b> ...
+            </div>
+            """, unsafe_allow_html=True)
